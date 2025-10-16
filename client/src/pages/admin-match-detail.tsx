@@ -132,7 +132,19 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       setSelectedStatus('STARTER');
       
       // Regenerate lineups to include the new player
-      await generateVariantsMutation.mutateAsync();
+      const result = await generateVariantsMutation.mutateAsync();
+      
+      // Invalidate queries and wait for them to refetch
+      await queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      
+      // Get the freshly generated variants and apply the first one
+      const variants = queryClient.getQueryData<{ ok: boolean; variants: LineupVariant[] }>(['/api/admin/matches', id, 'lineups']);
+      if (variants?.variants && variants.variants.length > 0) {
+        const firstVariant = variants.variants[0];
+        setSelectedVariant(firstVariant.id);
+        await applyVariantMutation.mutateAsync(firstVariant.id);
+      }
       
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
@@ -164,6 +176,18 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     onSuccess: async () => {
       // Regenerate lineups to reflect status change
       await generateVariantsMutation.mutateAsync();
+      
+      // Invalidate queries and wait for them to refetch
+      await queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      
+      // Get the freshly generated variants and apply the first one
+      const variants = queryClient.getQueryData<{ ok: boolean; variants: LineupVariant[] }>(['/api/admin/matches', id, 'lineups']);
+      if (variants?.variants && variants.variants.length > 0) {
+        const firstVariant = variants.variants[0];
+        setSelectedVariant(firstVariant.id);
+        await applyVariantMutation.mutateAsync(firstVariant.id);
+      }
       
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
@@ -219,6 +243,15 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       generateVariantsMutation.mutate();
     }
   }, [matchData]);
+
+  // Auto-apply first variant when variants are loaded
+  useEffect(() => {
+    if (variantsData?.variants && variantsData.variants.length > 0 && !selectedVariant) {
+      const firstVariant = variantsData.variants[0];
+      setSelectedVariant(firstVariant.id);
+      applyVariantMutation.mutate(firstVariant.id);
+    }
+  }, [variantsData?.variants]);
 
   if (isLoading) {
     return (
