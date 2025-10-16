@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +30,20 @@ export default function AdminPlayers() {
   const [addingToMatch, setAddingToMatch] = useState<PlayerWithRatings | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('STARTER');
+  const [creatingPlayer, setCreatingPlayer] = useState(false);
+  const [newPlayerData, setNewPlayerData] = useState({
+    name: '',
+    surname: '',
+    phone: '',
+    ratings: {
+      defense: 3,
+      attack: 3,
+      speed: 3,
+      power: 3,
+      technique: 3,
+      shot: 3,
+    },
+  });
 
   const { data, isLoading } = useQuery<{ ok: boolean; players: PlayerWithRatings[] }>({
     queryKey: ['/api/admin/players'],
@@ -90,6 +105,27 @@ export default function AdminPlayers() {
     },
   });
 
+  const createPlayerMutation = useMutation({
+    mutationFn: async (data: typeof newPlayerData) => {
+      const response = await apiRequest('POST', '/api/admin/players', data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/players'] });
+      setCreatingPlayer(false);
+      setNewPlayerData({
+        name: '',
+        surname: '',
+        phone: '',
+        ratings: { defense: 3, attack: 3, speed: 3, power: 3, technique: 3, shot: 3 },
+      });
+      toast({
+        title: 'Giocatore creato',
+        description: 'Il nuovo giocatore è stato aggiunto con successo',
+      });
+    },
+  });
+
   const openEditDialog = (player: PlayerWithRatings) => {
     setEditingPlayer(player);
     const ratings: Record<string, number> = {};
@@ -121,11 +157,17 @@ export default function AdminPlayers() {
   return (
     <div className="min-h-screen bg-paper p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-ink mb-2">Gestione Giocatori</h1>
-          <p className="text-inkMuted">
-            Totale: {players.length} giocatori • {playersWithSuggestions.length} con rating suggeriti
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-ink mb-2">Gestione Giocatori</h1>
+            <p className="text-inkMuted">
+              Totale: {players.length} giocatori • {playersWithSuggestions.length} con rating suggeriti
+            </p>
+          </div>
+          <Button onClick={() => setCreatingPlayer(true)} data-testid="button-create-player">
+            <UserPlus className="w-4 h-4 mr-2" />
+            Crea Giocatore
+          </Button>
         </div>
 
         {/* Players with suggested ratings */}
@@ -255,6 +297,89 @@ export default function AdminPlayers() {
           </div>
         </div>
       </div>
+
+      {/* Create Player Dialog */}
+      <Dialog open={creatingPlayer} onOpenChange={(open) => !open && setCreatingPlayer(false)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Crea Nuovo Giocatore</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-name">Nome *</Label>
+                <Input
+                  id="new-name"
+                  value={newPlayerData.name}
+                  onChange={(e) => setNewPlayerData({ ...newPlayerData, name: e.target.value })}
+                  data-testid="input-new-name"
+                  placeholder="Mario"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-surname">Cognome *</Label>
+                <Input
+                  id="new-surname"
+                  value={newPlayerData.surname}
+                  onChange={(e) => setNewPlayerData({ ...newPlayerData, surname: e.target.value })}
+                  data-testid="input-new-surname"
+                  placeholder="Rossi"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-phone">Telefono (opzionale)</Label>
+              <Input
+                id="new-phone"
+                type="tel"
+                value={newPlayerData.phone}
+                onChange={(e) => setNewPlayerData({ ...newPlayerData, phone: e.target.value })}
+                data-testid="input-new-phone"
+                placeholder="+39 333 1234567"
+              />
+            </div>
+            <div className="pt-4 border-t">
+              <h4 className="font-semibold mb-4">Rating</h4>
+              <div className="space-y-4">
+                {AXES.map((axis) => (
+                  <div key={axis} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label>{AXIS_LABELS_IT[axis as AxisKey]}</Label>
+                      <span className="text-sm font-semibold">{newPlayerData.ratings[axis as keyof typeof newPlayerData.ratings]}</span>
+                    </div>
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[newPlayerData.ratings[axis as keyof typeof newPlayerData.ratings]]}
+                      onValueChange={(value) => setNewPlayerData({
+                        ...newPlayerData,
+                        ratings: { ...newPlayerData.ratings, [axis]: value[0] }
+                      })}
+                      data-testid={`slider-new-${axis}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreatingPlayer(false)}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => createPlayerMutation.mutate(newPlayerData)}
+              disabled={!newPlayerData.name || !newPlayerData.surname || createPlayerMutation.isPending}
+              data-testid="button-confirm-create-player"
+            >
+              {createPlayerMutation.isPending ? 'Creazione...' : 'Crea Giocatore'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add to Match Dialog */}
       <Dialog open={!!addingToMatch} onOpenChange={(open) => !open && setAddingToMatch(null)}>

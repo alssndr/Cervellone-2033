@@ -197,6 +197,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create player manually (admin)
+  app.post('/api/admin/players', adminAuth, async (req, res) => {
+    try {
+      const { name, surname, phone, ratings } = req.body;
+      
+      // Create user if phone provided
+      let userId = null;
+      if (phone) {
+        const normalized = normalizeE164(phone);
+        let user = await storage.getUserByPhone(normalized);
+        if (!user) {
+          user = await storage.createUser({
+            phone: normalized,
+            name,
+            surname,
+            role: 'USER',
+          });
+        }
+        userId = user.id;
+      }
+
+      // Create player
+      const player = await storage.createPlayer({
+        userId,
+        name,
+        surname,
+        phone: phone ? normalizeE164(phone) : null,
+      });
+
+      // Create ratings
+      await storage.createPlayerRatings({
+        playerId: player.id,
+        defense: ratings?.defense || 3,
+        attack: ratings?.attack || 3,
+        speed: ratings?.speed || 3,
+        power: ratings?.power || 3,
+        technique: ratings?.technique || 3,
+        shot: ratings?.shot || 3,
+      });
+
+      res.json({ ok: true, player });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   // Get invite info
   app.get('/api/invite/:token', async (req, res) => {
     try {
