@@ -32,6 +32,11 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
   const existingLineups = await storage.getMatchLineupVersions(matchId);
   let ordinal = existingLineups.length;
 
+  // FIRST: Reset all existing recommended flags to false
+  for (const existing of existingLineups) {
+    await storage.updateLineupRecommended(existing.id, false);
+  }
+
   const versionIds: string[] = [];
 
   // Generate 1 GREEDY_LOCAL variant
