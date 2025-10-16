@@ -1,0 +1,258 @@
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Link, useLocation } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import TeamPanel from '@/components/TeamPanel';
+import RadarChart from '@/components/RadarChart';
+import FieldView from '@/components/FieldView';
+import { type Match, type Sport } from '@shared/schema';
+import { ArrowLeft, Calendar, MapPin, Users, Check } from 'lucide-react';
+
+interface MatchViewData {
+  ok: boolean;
+  view: {
+    match: {
+      sport: Sport;
+      dateTime: string;
+      location: string;
+      status: string;
+      teamNameLight: string;
+      teamNameDark: string;
+    };
+    starters: {
+      light: { id: string; name: string }[];
+      dark: { id: string; name: string }[];
+    };
+    reserves: {
+      light: { id: string; name: string }[];
+      dark: { id: string; name: string }[];
+    };
+    radar: {
+      light: Record<string, number>;
+      dark: Record<string, number>;
+    };
+  };
+}
+
+interface LineupVariant {
+  id: string;
+  ordinal: number;
+  algo: string;
+  score: number;
+  recommended: boolean;
+  light: string[];
+  dark: string[];
+}
+
+interface AdminMatchDetailProps {
+  params: { id: string };
+}
+
+export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
+  const { id } = params;
+  const { toast } = useToast();
+  const [, setRoute] = useLocation();
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+
+  // Fetch match data (using public endpoint for now, can be enhanced with admin endpoint)
+  const { data: matchData, isLoading } = useQuery<MatchViewData>({
+    queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`], // Admin phone
+  });
+
+  // Fetch lineup variants
+  const { data: variantsData } = useQuery<{ ok: boolean; variants: LineupVariant[] }>({
+    queryKey: ['/api/admin/matches', id, 'lineups'],
+  });
+
+  // Generate variants mutation
+  const generateVariantsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/admin/matches/${id}/generate-lineups`, { count: 5 });
+      return await response.json();
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+        toast({
+          title: 'Varianti generate!',
+          description: `${result.count} varianti create`,
+        });
+        // Auto-select first variant
+        if (variantsData?.variants?.[0]) {
+          setSelectedVariant(variantsData.variants[0].id);
+        }
+      }
+    },
+  });
+
+  // Apply variant mutation
+  const applyVariantMutation = useMutation({
+    mutationFn: async (lineupVersionId: string) => {
+      const response = await apiRequest('POST', `/api/admin/matches/${id}/apply-lineup`, { lineupVersionId });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      toast({
+        title: 'Variante applicata!',
+        description: 'Le squadre sono state aggiornate',
+      });
+    },
+  });
+
+  const getSportLabel = (sport: Sport) => {
+    switch (sport) {
+      case 'THREE': return '3v3';
+      case 'FIVE': return '5v5';
+      case 'EIGHT': return '8v8';
+      case 'ELEVEN': return '11v11';
+    }
+  };
+
+  // Auto-generate variants if none exist
+  useEffect(() => {
+    if (matchData?.ok && (!variantsData?.variants || variantsData.variants.length === 0)) {
+      generateVariantsMutation.mutate();
+    }
+  }, [matchData]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blueTeam mb-4"></div>
+          <p className="text-inkMuted">Caricamento partita...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!matchData?.ok || !matchData?.view) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Errore nel caricamento della partita</p>
+          <Link href="/admin/matches">
+            <Button variant="outline">Torna alle partite</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { match, starters, reserves, radar } = matchData.view;
+  const topVariants = variantsData?.variants?.slice(0, 3) || [];
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-6">
+          <Link href="/admin/matches">
+            <Button variant="ghost" size="sm" className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Torna alle partite
+            </Button>
+          </Link>
+
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-ink mb-2">
+                {match.teamNameLight} vs {match.teamNameDark}
+              </h1>
+              <div className="flex flex-wrap gap-4 text-sm text-inkMuted">
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {new Date(match.dateTime).toLocaleString('it-IT')}
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {match.location}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  {getSportLabel(match.sport)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Field View Header with Variants */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Campo {getSportLabel(match.sport)}</h2>
+            
+            {/* Variant Selectors */}
+            <div className="flex items-center gap-2">
+              {topVariants.map((variant, idx) => (
+                <button
+                  key={variant.id}
+                  onClick={() => setSelectedVariant(variant.id)}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
+                    selectedVariant === variant.id
+                      ? 'bg-blueTeam text-white shadow-lg'
+                      : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-blueTeam'
+                  }`}
+                  data-testid={`variant-selector-${idx + 1}`}
+                >
+                  v{idx + 1}
+                  {variant.recommended && selectedVariant !== variant.id && (
+                    <Check className="w-3 h-3 absolute -top-1 -right-1 text-green-600" />
+                  )}
+                </button>
+              ))}
+              <button
+                onClick={() => setSelectedVariant('custom')}
+                className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
+                  selectedVariant === 'custom'
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-purple-600'
+                }`}
+                data-testid="variant-selector-custom"
+              >
+                v!
+              </button>
+            </div>
+          </div>
+
+          <FieldView
+            sport={match.sport}
+            lightStarters={starters.light}
+            darkStarters={starters.dark}
+            reservesLight={reserves.light}
+            reservesDark={reserves.dark}
+          />
+        </div>
+
+        {/* Radar Chart */}
+        <div className="bg-white rounded-xl border border-gray-200 mb-8">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold">Confronto Radar</h2>
+          </div>
+          <RadarChart
+            lightData={radar.light}
+            darkData={radar.dark}
+            lightLabel={match.teamNameLight}
+            darkLabel={match.teamNameDark}
+          />
+        </div>
+
+        {/* Team Stats */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <TeamPanel 
+            teamLabel={`${match.teamNameLight} — Medie`}
+            axisMeans={radar.light}
+          />
+          <TeamPanel 
+            teamLabel={`${match.teamNameDark} — Medie`}
+            axisMeans={radar.dark}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
