@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -25,10 +25,18 @@ interface LineupVariant {
 export default function AdminMatches() {
   const { toast } = useToast();
   const [, setRoute] = useLocation();
-  const [sport, setSport] = useState<Sport>('FIVE');
+  const [sport, setSport] = useState<Sport>('THREE');
   const [dateTime, setDateTime] = useState('');
-  const [location, setLocation] = useState('Campo Sportivo');
+  const [location, setLocation] = useState('Da definire');
   const [selectedMatchForVariants, setSelectedMatchForVariants] = useState<string | null>(null);
+
+  // Set default datetime to 24 hours from now
+  useEffect(() => {
+    const tomorrow = new Date();
+    tomorrow.setHours(tomorrow.getHours() + 24);
+    const formattedDateTime = tomorrow.toISOString().slice(0, 16);
+    setDateTime(formattedDateTime);
+  }, []);
 
   const { data: matches, isLoading } = useQuery<{ ok: boolean; items: (Match & { inviteUrl: string })[] }>({
     queryKey: ['/api/admin/matches'],
@@ -51,8 +59,11 @@ export default function AdminMatches() {
           title: 'Partita creata!',
           description: `Usa il pulsante "Copia Invito" per condividere`,
         });
-        setDateTime('');
-        setLocation('Campo Sportivo');
+        // Reset to defaults
+        const tomorrow = new Date();
+        tomorrow.setHours(tomorrow.getHours() + 24);
+        setDateTime(tomorrow.toISOString().slice(0, 16));
+        setLocation('Da definire');
       } else {
         toast({
           title: 'Errore',
@@ -183,7 +194,7 @@ export default function AdminMatches() {
               <Input
                 id="location"
                 type="text"
-                placeholder="Es: Campo Sportivo"
+                placeholder="Es: Campo da calcetto"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 data-testid="input-location"
