@@ -1,0 +1,97 @@
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+🌱 Seeding database with placeholder players...
+✅ Admin user created
+✅ Seed complete: 22 players in database
+✅ Created 3 sample matches
+8:57:13 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 12 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+8:58:36 PM [vite] hmr update /src/components/FieldView.tsx, /src/index.css?v=gToYzroQmyQWqOl4BOrio
+8:59:54 PM [express] POST /api/admin/login 200 in 5ms :: {"ok":true,"token":"eyJhbGciOiJIUzI1NiIsInR…
+8:59:54 PM [express] GET /api/admin/matches 200 in 5ms :: {"ok":true,"items":[{"sport":"EIGHT","date…
+8:59:58 PM [express] POST /api/admin/matches 200 in 2ms :: {"ok":true,"match":{"sport":"THREE","date…
+8:59:58 PM [express] GET /api/admin/matches 200 in 2ms :: {"ok":true,"items":[{"sport":"EIGHT","date…
+9:00:02 PM [express] GET /api/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/public 200 in 2ms :: {"ok…
+9:00:03 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:00:03 PM [express] GET /api/admin/players 200 in 2ms :: {"ok":true,"players":[{"userId":"842a43ce-…
+9:00:03 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:00:03 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 5ms …
+9:00:03 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:07 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:08 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:12 PM [express] POST /api/admin/players/d4b97cc7-e130-401b-a21a-a967bd57e387/add-to-match 200 i…
+9:00:12 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:00:12 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:00:12 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 0ms …
+9:00:13 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 3ms …
+9:00:13 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:13 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 2ms …
+9:00:31 PM [express] POST /api/admin/login 200 in 1ms :: {"ok":true,"token":"eyJhbGciOiJIUzI1NiIsInR…
+9:00:31 PM [express] GET /api/admin/matches 200 in 1ms :: {"ok":true,"items":[{"sport":"EIGHT","date…
+9:00:34 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:00:34 PM [express] GET /api/admin/players 304 in 1ms :: {"ok":true,"players":[{"userId":"842a43ce-…
+9:00:34 PM [express] GET /api/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/public 304 in 0ms :: {"ok…
+9:00:34 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 304 in 1ms …
+9:00:35 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:39 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:00:41 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:03:07 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:03:07 PM [express] GET /api/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/public 304 in 0ms :: {"ok…
+9:03:07 PM [express] GET /api/admin/players 304 in 1ms :: {"ok":true,"players":[{"userId":"842a43ce-…
+9:03:07 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 304 in 0ms …
+9:03:07 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:34 PM [express] POST /api/admin/players/15fea22a-4a23-4b8f-b796-fcf441824d39/add-to-match 200 i…
+9:05:34 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:05:34 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:35 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:35 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 1ms …
+9:05:35 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:35 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 1ms …
+9:05:36 PM [express] POST /api/admin/players/bd7ae94c-58ea-47d0-88b0-156505d1415b/add-to-match 200 i…
+9:05:36 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:05:36 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:05:36 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:05:36 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 1ms …
+9:05:36 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:36 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 1ms …
+9:05:37 PM [express] POST /api/admin/players/a82d0700-1d8c-402f-8601-8f33a7bd2a65/add-to-match 200 i…
+9:05:38 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:05:38 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:38 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:38 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 2ms …
+9:05:38 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:38 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 1ms …
+9:05:46 PM [express] POST /api/admin/players/18f361e8-154e-4694-a052-d3c9f743f2ae/add-to-match 200 i…
+9:05:46 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:05:46 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:05:46 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 1ms …
+9:05:46 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 1ms …
+9:05:46 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:46 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 1ms …
+9:05:47 PM [express] POST /api/admin/players/097b1b03-8e78-42e8-8c33-68c2a609e97c/add-to-match 200 i…
+9:05:48 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/generate-lineups 2…
+9:05:48 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:48 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:05:48 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 1ms …
+9:05:48 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:48 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 200 in 1ms …
+9:05:53 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:54 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:05:55 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:09:09 PM [express] POST /api/admin/login 200 in 2ms :: {"ok":true,"token":"eyJhbGciOiJIUzI1NiIsInR…
+9:09:09 PM [express] GET /api/admin/matches 200 in 3ms :: {"ok":true,"items":[{"sport":"EIGHT","date…
+9:09:13 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 304 in 2ms …
+9:09:13 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 200 in 2ms …
+9:09:13 PM [express] GET /api/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/public 304 in 0ms :: {"ok…
+9:09:13 PM [express] GET /api/admin/players 304 in 1ms :: {"ok":true,"players":[{"userId":"842a43ce-…
+9:09:13 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
+9:09:23 PM [express] GET /api/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/public 304 in 0ms :: {"ok…
+9:09:23 PM [express] GET /api/admin/players 304 in 1ms :: {"ok":true,"players":[{"userId":"842a43ce-…
+9:09:23 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/signups 304 in 1ms …
+9:09:23 PM [express] GET /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/lineups 304 in 2ms …
+9:09:23 PM [express] POST /api/admin/matches/00c531e9-ca58-4ee0-9670-564a4acf19ac/apply-lineup 200 i…
