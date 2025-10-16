@@ -31,12 +31,8 @@ export default function AdminMatches() {
         queryClient.invalidateQueries({ queryKey: ['/api/admin/matches'] });
         toast({
           title: 'Partita creata!',
-          description: `Link di invito copiato negli appunti`,
+          description: `Usa il pulsante "Copia Invito" per condividere`,
         });
-        // Copy invite URL to clipboard
-        if (result.inviteUrl) {
-          navigator.clipboard.writeText(result.inviteUrl);
-        }
         // Reset form
         setDateTime('');
         setLocation('Campo Sportivo');
