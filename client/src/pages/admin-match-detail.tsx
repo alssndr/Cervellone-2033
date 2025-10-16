@@ -140,7 +140,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       
       // Get the freshly generated variants and apply the first one
-      const variants = queryClient.getQueryData<{ ok: boolean; variants: LineupVariant[] }>(['/api/admin/matches', id, 'lineups']);
+      const lineupsResponse = await queryClient.fetchQuery({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      const variants = lineupsResponse as { ok: boolean; variants: LineupVariant[] };
       if (variants?.variants && variants.variants.length > 0) {
         const firstVariant = variants.variants[0];
         setSelectedVariant(firstVariant.id);
@@ -183,7 +184,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       
       // Get the freshly generated variants and apply the first one
-      const variants = queryClient.getQueryData<{ ok: boolean; variants: LineupVariant[] }>(['/api/admin/matches', id, 'lineups']);
+      const lineupsResponse = await queryClient.fetchQuery({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      const variants = lineupsResponse as { ok: boolean; variants: LineupVariant[] };
       if (variants?.variants && variants.variants.length > 0) {
         const firstVariant = variants.variants[0];
         setSelectedVariant(firstVariant.id);
