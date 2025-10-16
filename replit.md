@@ -4,7 +4,7 @@
 
 This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
 
-**Status**: ✅ Production Ready - Extended with lineup variants, player management, and UX improvements (October 2025)
+**Status**: ✅ Production Ready - Full feature set with variant system, player management, and visual team displays (October 2025)
 
 ## User Preferences
 
@@ -119,19 +119,24 @@ Preferred communication style: Simple, everyday language.
    - Date/Time: +24 hours from creation
    - Location: "Da definire" placeholder
 
-2. **Public Match View Layout**: 
+2. **Admin Match Detail Page** (`/admin/matches/:id`):
+   - **Variant Selection**: Circular buttons (v1, v2, v3, v!) positioned top-right above field for real-time variant switching
+   - **Visual Displays** (in order):
+     - Field visualization (500px height) with player names on colored badges
+     - Team rosters in two columns (Chiari/Scuri) with numbered player lists
+     - Radar chart comparing team attributes
+     - Team statistics panels showing axis means
+   - **Player Management**:
+     - Giocatori Schierati: Enrolled players with status dropdown (Titolare/Riserva/Prossimo)
+     - Aggiungi Giocatore: Shows only available players (prevents duplicates)
+   - **Auto-rebalancing**: Regenerates and applies lineup variants after player additions or status changes
+   - **Browser cache fix**: Force refetch after lineup application ensures immediate visual updates
+   - **Flexible team sizes**: Works with any number of players (1+), balances optimally based on available players
+
+3. **Public Match View Layout**: 
    - Field visualization at top (always visible, 500px height)
    - Radar chart below field
    - Team statistics panels in two columns at bottom
-
-3. **Admin Match Detail Page** (`/admin/matches/:id`):
-   - Variant selection system with circular buttons (v1, v2, v3, v!) positioned top-right above field
-   - Real-time switching between lineup variants
-   - Automatic field/radar/stats updates when variant changes
-   - **Giocatori Schierati section**: Shows enrolled players with dropdown to change status (Titolare/Riserva/Prossimo)
-   - **Aggiungi Giocatore section**: Shows only available players (not yet enrolled), prevents duplicates
-   - **Auto-rebalancing**: Automatically regenerates lineup variants after adding player or changing status
-   - Toast notifications: "Squadre ribilanciate automaticamente" after modifications
 
 4. **Admin Players Page Redesign** (`/admin/players`):
    - 2-column grid layout (md:grid-cols-2)

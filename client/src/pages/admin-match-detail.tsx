@@ -387,6 +387,51 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
           />
         </div>
 
+        {/* Team Rosters - Text View */}
+        {(starters.light.length > 0 || starters.dark.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <div className="rounded-xl border border-card-border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
+                {match.teamNameLight} (Chiari)
+              </h3>
+              <div className="space-y-2">
+                {starters.light.map((player, idx) => (
+                  <div
+                    key={player.id}
+                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
+                    data-testid={`roster-light-${player.id}`}
+                  >
+                    {idx + 1}. {player.name}
+                  </div>
+                ))}
+                {starters.light.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-card-border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#0000ff' }}>
+                {match.teamNameDark} (Scuri)
+              </h3>
+              <div className="space-y-2">
+                {starters.dark.map((player, idx) => (
+                  <div
+                    key={player.id}
+                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
+                    data-testid={`roster-dark-${player.id}`}
+                  >
+                    {idx + 1}. {player.name}
+                  </div>
+                ))}
+                {starters.dark.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Radar Chart */}
         <div className="bg-white rounded-xl border border-gray-200 mb-8">
           <div className="p-6 border-b border-gray-200">
