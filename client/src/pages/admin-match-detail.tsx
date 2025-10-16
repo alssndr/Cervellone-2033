@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import TeamPanel from '@/components/TeamPanel';
 import RadarChart from '@/components/RadarChart';
 import FieldView from '@/components/FieldView';
-import { type Match, type Sport } from '@shared/schema';
-import { ArrowLeft, Calendar, MapPin, Users, Check } from 'lucide-react';
+import { type Match, type Sport, AXES, AXIS_LABELS_IT } from '@shared/schema';
+import { ArrowLeft, Calendar, MapPin, Users, Check, UserPlus } from 'lucide-react';
 
 interface MatchViewData {
   ok: boolean;
@@ -54,8 +57,9 @@ interface AdminMatchDetailProps {
 export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   const { id } = params;
   const { toast } = useToast();
-  const [, setRoute] = useLocation();
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+  const [addingPlayer, setAddingPlayer] = useState<any | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string>('STARTER');
 
   // Fetch match data (using public endpoint for now, can be enhanced with admin endpoint)
   const { data: matchData, isLoading } = useQuery<MatchViewData>({
@@ -65,6 +69,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   // Fetch lineup variants
   const { data: variantsData } = useQuery<{ ok: boolean; variants: LineupVariant[] }>({
     queryKey: ['/api/admin/matches', id, 'lineups'],
+  });
+
+  // Fetch all players
+  const { data: playersData } = useQuery<{ ok: boolean; players: any[] }>({
+    queryKey: ['/api/admin/players'],
   });
 
   // Generate variants mutation
@@ -103,6 +112,34 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     },
   });
 
+  // Add player to match mutation
+  const addPlayerMutation = useMutation({
+    mutationFn: async ({ playerId, status }: { playerId: string; status: string }) => {
+      const response = await apiRequest('POST', `/api/admin/players/${playerId}/add-to-match`, { matchId: id, status });
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Errore sconosciuto');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      setAddingPlayer(null);
+      setSelectedStatus('STARTER');
+      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      toast({
+        title: 'Giocatore aggiunto',
+        description: 'Il giocatore è stato iscritto alla partita',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: error.message,
+      });
+    },
+  });
+
   // Handle variant selection
   const handleVariantClick = (variantId: string, variantIndex: number) => {
     if (variantId === 'custom') {
@@ -116,6 +153,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
 
     setSelectedVariant(variantId);
     applyVariantMutation.mutate(variantId);
+  };
+
+  const calculatePlayerAverage = (ratings: any) => {
+    if (!ratings) return 0;
+    const values = AXES.map(axis => ratings[axis] || 0);
+    const sum = values.reduce((a, b) => a + b, 0);
+    return (sum / values.length).toFixed(1);
   };
 
   const getSportLabel = (sport: Sport) => {
@@ -269,7 +313,91 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
             axisMeans={radar.dark}
           />
         </div>
+
+        {/* Compact Players Section */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold mb-4">Aggiungi Giocatore</h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            {playersData?.players?.map((player: any) => (
+              <div
+                key={player.id}
+                className="border border-gray-200 rounded-lg p-4 hover:border-blueTeam transition-colors"
+                data-testid={`player-compact-${player.id}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm">
+                      {player.name} {player.surname}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">{player.phone || 'Nessun telefono'}</p>
+                    <div className="mt-2">
+                      <span className="text-2xl font-bold text-blueTeam">
+                        {calculatePlayerAverage(player.currentRatings)}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-1">media</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddingPlayer(player)}
+                    data-testid={`button-add-player-${player.id}`}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Add Player Dialog */}
+      <Dialog open={!!addingPlayer} onOpenChange={(open) => !open && setAddingPlayer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aggiungi {addingPlayer?.name} {addingPlayer?.surname}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="status">Stato</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STARTER">Titolare</SelectItem>
+                  <SelectItem value="RESERVE">Riserva</SelectItem>
+                  <SelectItem value="NEXT">Prossimo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddingPlayer(null)}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (addingPlayer) {
+                  addPlayerMutation.mutate({
+                    playerId: addingPlayer.id,
+                    status: selectedStatus,
+                  });
+                }
+              }}
+              disabled={addPlayerMutation.isPending}
+            >
+              {addPlayerMutation.isPending ? 'Aggiunta...' : 'Aggiungi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
