@@ -98,10 +98,25 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
       toast({
         title: 'Variante applicata!',
-        description: 'Le squadre sono state aggiornate',
+        description: 'Le squadre aggiornate',
       });
     },
   });
+
+  // Handle variant selection
+  const handleVariantClick = (variantId: string, variantIndex: number) => {
+    if (variantId === 'custom') {
+      setSelectedVariant('custom');
+      toast({
+        title: 'Modalità Personalizzata',
+        description: 'Funzionalità drag&drop in arrivo',
+      });
+      return;
+    }
+
+    setSelectedVariant(variantId);
+    applyVariantMutation.mutate(variantId);
+  };
 
   const getSportLabel = (sport: Sport) => {
     switch (sport) {
@@ -191,12 +206,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
               {topVariants.map((variant, idx) => (
                 <button
                   key={variant.id}
-                  onClick={() => setSelectedVariant(variant.id)}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
+                  onClick={() => handleVariantClick(variant.id, idx)}
+                  disabled={applyVariantMutation.isPending}
+                  className={`relative w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
                     selectedVariant === variant.id
                       ? 'bg-blueTeam text-white shadow-lg'
                       : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-blueTeam'
-                  }`}
+                  } ${applyVariantMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
                   data-testid={`variant-selector-${idx + 1}`}
                 >
                   v{idx + 1}
@@ -206,12 +222,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                 </button>
               ))}
               <button
-                onClick={() => setSelectedVariant('custom')}
+                onClick={() => handleVariantClick('custom', -1)}
+                disabled={applyVariantMutation.isPending}
                 className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
                   selectedVariant === 'custom'
                     ? 'bg-purple-600 text-white shadow-lg'
                     : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-purple-600'
-                }`}
+                } ${applyVariantMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid="variant-selector-custom"
               >
                 v!
