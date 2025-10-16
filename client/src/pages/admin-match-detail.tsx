@@ -109,8 +109,9 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       return await response.json();
     },
     onSuccess: async () => {
-      // Force refetch to get updated team assignments
+      // Force immediate refetch to get updated team assignments
       await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       toast({
         title: 'Variante applicata!',
         description: 'Le squadre aggiornate',
@@ -151,9 +152,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         console.log('[ADD_PLAYER] Applying latest variant:', latestVariant.id);
         setSelectedVariant(latestVariant.id);
         await applyVariantMutation.mutateAsync(latestVariant.id);
+        
+        // Force immediate update of public view
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       }
       
-      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       
       toast({
@@ -198,9 +201,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         console.log('[UPDATE_STATUS] Applying latest variant:', latestVariant.id);
         setSelectedVariant(latestVariant.id);
         await applyVariantMutation.mutateAsync(latestVariant.id);
+        
+        // Force immediate update of public view
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       }
       
-      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       
       toast({
