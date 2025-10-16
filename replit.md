@@ -4,7 +4,7 @@
 
 This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
 
-**Status**: ✅ Production Ready - Extended with lineup variants and player management (October 2025)
+**Status**: ✅ Production Ready - Extended with lineup variants, player management, and UX improvements (October 2025)
 
 ## User Preferences
 
@@ -111,6 +111,36 @@ Preferred communication style: Simple, everyday language.
    - Endpoint: `POST /api/admin/players`
    - UI: "Crea Giocatore" button at top of players page opens creation dialog
    - Automatically creates associated user record if phone number provided
+
+**UX Improvements** (October 2025):
+
+1. **Match Creation Defaults**: 
+   - Sport: 3v3 (most common format)
+   - Date/Time: +24 hours from creation
+   - Location: "Da definire" placeholder
+
+2. **Public Match View Layout**: 
+   - Field visualization at top (always visible, 500px height)
+   - Radar chart below field
+   - Team statistics panels in two columns at bottom
+
+3. **Admin Match Detail Page** (`/admin/matches/:id`):
+   - Variant selection system with circular buttons (v1, v2, v3, v!) positioned top-right above field
+   - Real-time switching between lineup variants
+   - Automatic field/radar/stats updates when variant changes
+   - Compact player management section at bottom with 2-column grid
+   - Context-aware "Aggiungi Giocatore" dialog for quick player additions
+
+4. **Admin Players Page Redesign** (`/admin/players`):
+   - 2-column grid layout (md:grid-cols-2)
+   - Vertical player cards with centered content
+   - Prominent average rating display (4xl font, blue color) with "MEDIA" label
+   - Rating details in compact 2-column grid
+   - Stacked action buttons
+
+5. **Admin Matches List**:
+   - Simplified "Gestisci" (Manage) button replacing "Visualizza"
+   - Direct navigation to match detail page with variant controls
 
 **Seed Data**:
 - 22 placeholder players with randomized ratings (pre-seeded on startup)
