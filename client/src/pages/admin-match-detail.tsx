@@ -146,10 +146,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       const lineupsData = await response.json();
       
       if (lineupsData?.variants && lineupsData.variants.length > 0) {
-        const firstVariant = lineupsData.variants[0];
-        console.log('[ADD_PLAYER] Applying variant:', firstVariant.id);
-        setSelectedVariant(firstVariant.id);
-        await applyVariantMutation.mutateAsync(firstVariant.id);
+        // Take the LAST variant (most recently generated)
+        const latestVariant = lineupsData.variants[lineupsData.variants.length - 1];
+        console.log('[ADD_PLAYER] Applying latest variant:', latestVariant.id);
+        setSelectedVariant(latestVariant.id);
+        await applyVariantMutation.mutateAsync(latestVariant.id);
       }
       
       await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
@@ -192,10 +193,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       const lineupsData = await response.json();
       
       if (lineupsData?.variants && lineupsData.variants.length > 0) {
-        const firstVariant = lineupsData.variants[0];
-        console.log('[UPDATE_STATUS] Applying variant:', firstVariant.id);
-        setSelectedVariant(firstVariant.id);
-        await applyVariantMutation.mutateAsync(firstVariant.id);
+        // Take the LAST variant (most recently generated)
+        const latestVariant = lineupsData.variants[lineupsData.variants.length - 1];
+        console.log('[UPDATE_STATUS] Applying latest variant:', latestVariant.id);
+        setSelectedVariant(latestVariant.id);
+        await applyVariantMutation.mutateAsync(latestVariant.id);
       }
       
       await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
