@@ -212,6 +212,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get match signups with player details (admin)
+  app.get('/api/admin/matches/:id/signups', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const signups = await storage.getMatchSignups(id);
+      
+      const signupsWithPlayers = await Promise.all(
+        signups.map(async (signup) => {
+          const player = await storage.getPlayer(signup.playerId);
+          const ratings = await storage.getPlayerRatings(signup.playerId);
+          return {
+            signupId: signup.id,
+            playerId: signup.playerId,
+            status: signup.status,
+            reserveTeam: signup.reserveTeam,
+            player: player ? {
+              id: player.id,
+              name: player.name,
+              surname: player.surname,
+              phone: player.phone,
+            } : null,
+            ratings,
+          };
+        })
+      );
+
+      res.json({ ok: true, signups: signupsWithPlayers });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Update player signup status (admin)
+  app.patch('/api/admin/signups/:signupId/status', adminAuth, async (req, res) => {
+    try {
+      const { signupId } = req.params;
+      const { status } = req.body;
+      
+      if (!['STARTER', 'RESERVE', 'NEXT'].includes(status)) {
+        return res.status(400).json({ ok: false, error: 'Stato non valido' });
+      }
+
+      await storage.updateSignup(signupId, status as any);
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   // Create player manually (admin)
   app.post('/api/admin/players', adminAuth, async (req, res) => {
     try {
