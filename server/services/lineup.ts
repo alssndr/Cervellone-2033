@@ -99,9 +99,22 @@ export async function applyLineupVersion(lineupVersionId: string): Promise<void>
   const match = await storage.getMatch(version.matchId);
   if (!match) throw new Error('Match not found');
 
-  const teams = await storage.getMatchTeams(version.matchId);
-  const lightTeam = teams.find(t => t.name === 'LIGHT')!;
-  const darkTeam = teams.find(t => t.name === 'DARK')!;
+  let teams = await storage.getMatchTeams(version.matchId);
+  
+  // Create teams if they don't exist
+  if (teams.length === 0) {
+    console.log(`Creating teams for match ${version.matchId}`);
+    await storage.createTeam({ matchId: version.matchId, name: 'LIGHT' });
+    await storage.createTeam({ matchId: version.matchId, name: 'DARK' });
+    teams = await storage.getMatchTeams(version.matchId);
+  }
+  
+  const lightTeam = teams.find(t => t.name === 'LIGHT');
+  const darkTeam = teams.find(t => t.name === 'DARK');
+  
+  if (!lightTeam || !darkTeam) {
+    throw new Error(`Teams not properly created for match ${version.matchId}`);
+  }
 
   // Clear existing team assignments
   await storage.deleteTeamAssignments(lightTeam.id);
