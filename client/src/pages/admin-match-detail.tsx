@@ -138,14 +138,16 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       // Regenerate lineups to include the new player
       await generateVariantsMutation.mutateAsync();
       
-      // Refetch to get NEW variants
-      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      // Wait a bit for cache to clear, then fetch fresh
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Get the fresh variants
-      const lineupsData = queryClient.getQueryData(['/api/admin/matches', id, 'lineups']) as { ok: boolean; variants: any[] } | undefined;
+      // Fetch directly from server (bypass all cache)
+      const response = await fetch(`/api/admin/matches/${id}/lineups`);
+      const lineupsData = await response.json();
       
       if (lineupsData?.variants && lineupsData.variants.length > 0) {
         const firstVariant = lineupsData.variants[0];
+        console.log('[ADD_PLAYER] Applying variant:', firstVariant.id);
         setSelectedVariant(firstVariant.id);
         await applyVariantMutation.mutateAsync(firstVariant.id);
       }
@@ -178,24 +180,23 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       return data;
     },
     onSuccess: async () => {
-      // Regenerate lineups to reflect status change
+      // Reset and regenerate lineups to reflect status change
+      setSelectedVariant(null);
       await generateVariantsMutation.mutateAsync();
       
-      // Force clear cache and refetch
-      queryClient.removeQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      // Wait a bit, then fetch fresh from server
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Fetch fresh variants directly from API (bypass cache completely)
+      // Fetch directly from server (bypass all cache)
       const response = await fetch(`/api/admin/matches/${id}/lineups`);
-      const variants = await response.json();
+      const lineupsData = await response.json();
       
-      if (variants?.variants && variants.variants.length > 0) {
-        const firstVariant = variants.variants[0];
+      if (lineupsData?.variants && lineupsData.variants.length > 0) {
+        const firstVariant = lineupsData.variants[0];
+        console.log('[UPDATE_STATUS] Applying variant:', firstVariant.id);
         setSelectedVariant(firstVariant.id);
         await applyVariantMutation.mutateAsync(firstVariant.id);
       }
-      
-      // Now update cache with fresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       
       await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
