@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { AXIS_LABELS_IT, type AxisKey, AXES } from '@shared/schema';
-import { UserCircle, CheckCircle, Edit } from 'lucide-react';
+import { UserCircle, CheckCircle, Edit, UserPlus } from 'lucide-react';
 
 interface PlayerWithRatings {
   id: string;
@@ -25,9 +26,16 @@ export default function AdminPlayers() {
   const { toast } = useToast();
   const [editingPlayer, setEditingPlayer] = useState<PlayerWithRatings | null>(null);
   const [editedRatings, setEditedRatings] = useState<Record<string, number>>({});
+  const [addingToMatch, setAddingToMatch] = useState<PlayerWithRatings | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('STARTER');
 
   const { data, isLoading } = useQuery<{ ok: boolean; players: PlayerWithRatings[] }>({
     queryKey: ['/api/admin/players'],
+  });
+
+  const { data: matchesData } = useQuery<{ ok: boolean; items: any[] }>({
+    queryKey: ['/api/admin/matches'],
   });
 
   const approveMutation = useMutation({
@@ -62,6 +70,22 @@ export default function AdminPlayers() {
       toast({
         title: 'Rating aggiornati',
         description: 'I rating sono stati modificati con successo',
+      });
+    },
+  });
+
+  const addToMatchMutation = useMutation({
+    mutationFn: async ({ playerId, matchId, status }: { playerId: string; matchId: string; status: string }) => {
+      const response = await apiRequest('POST', `/api/admin/players/${playerId}/add-to-match`, { matchId, status });
+      return await response.json();
+    },
+    onSuccess: () => {
+      setAddingToMatch(null);
+      setSelectedMatch('');
+      setSelectedStatus('STARTER');
+      toast({
+        title: 'Giocatore aggiunto',
+        description: 'Il giocatore è stato iscritto alla partita',
       });
     },
   });
@@ -207,7 +231,7 @@ export default function AdminPlayers() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t">
+                  <div className="mt-4 pt-4 border-t flex gap-2">
                     <Button
                       variant="outline"
                       onClick={() => openEditDialog(player)}
@@ -216,6 +240,14 @@ export default function AdminPlayers() {
                       <Edit className="w-4 h-4 mr-2" />
                       Modifica Rating
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setAddingToMatch(player)}
+                      data-testid={`button-add-to-match-${player.id}`}
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Aggiungi a Partita
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -223,6 +255,66 @@ export default function AdminPlayers() {
           </div>
         </div>
       </div>
+
+      {/* Add to Match Dialog */}
+      <Dialog open={!!addingToMatch} onOpenChange={(open) => !open && setAddingToMatch(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Aggiungi {addingToMatch?.name} {addingToMatch?.surname} a Partita
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Partita</Label>
+              <Select value={selectedMatch} onValueChange={setSelectedMatch}>
+                <SelectTrigger data-testid="select-match">
+                  <SelectValue placeholder="Seleziona partita" />
+                </SelectTrigger>
+                <SelectContent>
+                  {matchesData?.items.map((match: any) => (
+                    <SelectItem key={match.id} value={match.id}>
+                      {match.sport} - {new Date(match.dateTime).toLocaleDateString('it-IT')} - {match.location}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Stato</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger data-testid="select-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STARTER">Titolare</SelectItem>
+                  <SelectItem value="RESERVE">Riserva</SelectItem>
+                  <SelectItem value="NEXT">Lista Attesa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddingToMatch(null)}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => addingToMatch && selectedMatch && addToMatchMutation.mutate({
+                playerId: addingToMatch.id,
+                matchId: selectedMatch,
+                status: selectedStatus
+              })}
+              disabled={!selectedMatch || addToMatchMutation.isPending}
+              data-testid="button-confirm-add-to-match"
+            >
+              {addToMatchMutation.isPending ? 'Aggiunta...' : 'Conferma'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Ratings Dialog */}
       <Dialog open={!!editingPlayer} onOpenChange={(open) => !open && setEditingPlayer(null)}>

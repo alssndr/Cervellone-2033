@@ -174,6 +174,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add player to match manually (admin)
+  app.post('/api/admin/players/:id/add-to-match', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { matchId, status } = req.body;
+      
+      const player = await storage.getPlayer(id);
+      if (!player) {
+        return res.status(404).json({ ok: false, error: 'Player not found' });
+      }
+
+      await storage.createSignup({
+        matchId,
+        playerId: id,
+        status: status || 'STARTER',
+      });
+
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   // Get invite info
   app.get('/api/invite/:token', async (req, res) => {
     try {
