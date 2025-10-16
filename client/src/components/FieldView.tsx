@@ -63,7 +63,8 @@ export default function FieldView({
               {lightStarters.map((player, idx) => (
                 <div
                   key={player.id}
-                  className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-green-900 shadow-lg whitespace-nowrap"
+                  className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap"
+                  style={{ backgroundColor: 'rgba(252, 15, 192, 0.9)' }}
                   data-testid={`player-light-${player.id}`}
                 >
                   {player.name || `Giocatore ${idx + 1}`}
@@ -78,7 +79,8 @@ export default function FieldView({
               {darkStarters.map((player, idx) => (
                 <div
                   key={player.id}
-                  className="bg-blueTeam/90 backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap"
+                  className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap"
+                  style={{ backgroundColor: 'rgba(0, 0, 255, 0.9)' }}
                   data-testid={`player-dark-${player.id}`}
                 >
                   {player.name || `Giocatore ${idx + 1}`}
