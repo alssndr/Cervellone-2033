@@ -41,6 +41,7 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
   versionIds.push(greedyVersion.id);
 
   // Create assignments for greedy version
+  console.log(`[generateLineupVariants] Creating lineup assignments for GREEDY version: ${greedyResult.light.length} light + ${greedyResult.dark.length} dark`);
   for (const playerId of greedyResult.light) {
     await storage.createLineupAssignment({
       lineupVersionId: greedyVersion.id,
@@ -92,10 +93,12 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
 }
 
 export async function applyLineupVersion(lineupVersionId: string): Promise<void> {
+  console.log(`[applyLineupVersion] START - applying lineup version ${lineupVersionId}`);
   const version = await storage.getLineupVersion(lineupVersionId);
   if (!version) throw new Error('Lineup version not found');
 
   const assignments = await storage.getLineupAssignments(lineupVersionId);
+  console.log(`[applyLineupVersion] Retrieved ${assignments.length} lineup assignments from storage`);
   const match = await storage.getMatch(version.matchId);
   if (!match) throw new Error('Match not found');
 
@@ -121,14 +124,21 @@ export async function applyLineupVersion(lineupVersionId: string): Promise<void>
   await storage.deleteTeamAssignments(darkTeam.id);
 
   // Apply new assignments from lineup version
+  console.log(`[applyLineupVersion] Found ${assignments.length} lineup assignments to apply`);
   for (const assignment of assignments) {
     const teamId = assignment.teamSide === 'LIGHT' ? lightTeam.id : darkTeam.id;
+    console.log(`[applyLineupVersion] Creating team assignment: player=${assignment.playerId}, team=${assignment.teamSide}, teamId=${teamId}`);
     await storage.createTeamAssignment({
       teamId,
       playerId: assignment.playerId,
       position: assignment.position,
     });
   }
+  
+  // Verify assignments were created
+  const verifyLight = await storage.getTeamAssignments(lightTeam.id);
+  const verifyDark = await storage.getTeamAssignments(darkTeam.id);
+  console.log(`[applyLineupVersion] VERIFICATION: Light team has ${verifyLight.length} assignments, Dark team has ${verifyDark.length} assignments`);
 
   // Update recommended status
   const allVersions = await storage.getMatchLineupVersions(version.matchId);

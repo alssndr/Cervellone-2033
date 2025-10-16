@@ -32,8 +32,6 @@ export default function FieldView({
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-card-border bg-card p-6" data-testid="field-view">
-        <h3 className="text-lg font-semibold mb-4">Campo {getSportLabel(sport)}</h3>
-        
         {/* Campo da gioco */}
         <div className="relative bg-green-700 rounded-lg p-8 min-h-[500px]" style={{
           backgroundImage: `repeating-linear-gradient(
