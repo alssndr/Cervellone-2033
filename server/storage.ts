@@ -60,6 +60,7 @@ export interface IStorage {
   getMatchLineupVersions(matchId: string): Promise<LineupVersion[]>;
   createLineupVersion(version: InsertLineupVersion): Promise<LineupVersion>;
   updateLineupRecommended(id: string, recommended: boolean): Promise<void>;
+  deleteLineupVersion(id: string): Promise<void>;
 
   // LineupAssignments
   getLineupAssignments(lineupVersionId: string): Promise<LineupAssignment[]>;
@@ -280,6 +281,10 @@ export class MemStorage implements IStorage {
       version.recommended = recommended;
       this.lineupVersions.set(id, version);
     }
+  }
+
+  async deleteLineupVersion(id: string): Promise<void> {
+    this.lineupVersions.delete(id);
   }
 
   // LineupAssignments

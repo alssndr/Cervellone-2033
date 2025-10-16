@@ -132,24 +132,23 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       setAddingPlayer(null);
       setSelectedStatus('STARTER');
       
+      // Reset selected variant before regenerating
+      setSelectedVariant(null);
+      
       // Regenerate lineups to include the new player
-      const result = await generateVariantsMutation.mutateAsync();
+      await generateVariantsMutation.mutateAsync();
       
-      // Force clear cache and refetch
-      queryClient.removeQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      // Refetch to get NEW variants
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       
-      // Fetch fresh variants directly from API (bypass cache completely)
-      const response = await fetch(`/api/admin/matches/${id}/lineups`);
-      const variants = await response.json();
+      // Get the fresh variants
+      const lineupsData = queryClient.getQueryData(['/api/admin/matches', id, 'lineups']) as { ok: boolean; variants: any[] } | undefined;
       
-      if (variants?.variants && variants.variants.length > 0) {
-        const firstVariant = variants.variants[0];
+      if (lineupsData?.variants && lineupsData.variants.length > 0) {
+        const firstVariant = lineupsData.variants[0];
         setSelectedVariant(firstVariant.id);
         await applyVariantMutation.mutateAsync(firstVariant.id);
       }
-      
-      // Now update cache with fresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       
       await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });

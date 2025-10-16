@@ -28,9 +28,14 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
     })
   );
 
-  // Get existing lineup count for ordinal
+  // DELETE ALL OLD VARIANTS AND ASSIGNMENTS FOR THIS MATCH
   const existingLineups = await storage.getMatchLineupVersions(matchId);
-  let ordinal = existingLineups.length;
+  for (const oldVersion of existingLineups) {
+    await storage.deleteLineupAssignments(oldVersion.id);
+    await storage.deleteLineupVersion(oldVersion.id);
+  }
+  
+  let ordinal = 0; // Always start from 0 since we deleted old ones
 
   const versionIds: string[] = [];
 
