@@ -9,9 +9,12 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
 
   const perTeam = startersCap(match.sport) / 2;
   const signups = await storage.getMatchSignups(matchId);
-  console.log(`[generateLineupVariants] Match ${matchId}: ${signups.length} total signups`);
   const starters = signups.filter(s => s.status === 'STARTER');
-  console.log(`[generateLineupVariants] Found ${starters.length} STARTERS (need ${perTeam * 2} for ${match.sport})`);
+  
+  const required = perTeam * 2;
+  if (starters.length < required) {
+    throw new Error(`Servono almeno ${required} giocatori titolari per ${match.sport}. Al momento: ${starters.length}`);
+  }
 
   // Build rated players array
   const rated: RatedPlayer[] = await Promise.all(
