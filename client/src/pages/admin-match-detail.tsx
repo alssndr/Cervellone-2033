@@ -127,14 +127,19 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setAddingPlayer(null);
       setSelectedStatus('STARTER');
+      
+      // Regenerate lineups to include the new player
+      await generateVariantsMutation.mutateAsync();
+      
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
+      
       toast({
         title: 'Giocatore aggiunto',
-        description: 'Il giocatore è stato iscritto alla partita',
+        description: 'Squadre ribilanciate automaticamente',
       });
     },
     onError: (error: Error) => {
@@ -156,12 +161,16 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Regenerate lineups to reflect status change
+      await generateVariantsMutation.mutateAsync();
+      
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
+      
       toast({
         title: 'Stato aggiornato',
-        description: 'Lo stato del giocatore è stato modificato',
+        description: 'Squadre ribilanciate automaticamente',
       });
     },
     onError: (error: Error) => {
