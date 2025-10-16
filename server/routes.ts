@@ -1,7 +1,7 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { normalizeE164, startersCap, type Sport } from "@shared/schema";
+import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
 import jwt from "jsonwebtoken";
@@ -10,9 +10,13 @@ const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'producti
   ? (() => { throw new Error('JWT_SECRET is required in production'); })() 
   : "dev-secret-key");
 
+interface AuthRequest extends Request {
+  adminUser?: User;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Admin authentication middleware
-  const adminAuth = async (req: any, res: any, next: any) => {
+  const adminAuth = async (req: AuthRequest, res: any, next: any) => {
     const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.admin_token;
     if (!token) {
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
@@ -68,7 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create match (admin)
-  app.post('/api/admin/matches', adminAuth, async (req, res) => {
+  app.post('/api/admin/matches', adminAuth, async (req: AuthRequest, res) => {
     try {
       const { sport, dateTime, location } = req.body;
       
@@ -76,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sport: sport as Sport,
         dateTime,
         location,
-        createdBy: req.adminUser.id,
+        createdBy: req.adminUser!.id,
         teamNameLight: 'Chiari',
         teamNameDark: 'Scuri',
       });

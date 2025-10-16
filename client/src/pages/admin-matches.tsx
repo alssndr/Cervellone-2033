@@ -17,7 +17,7 @@ export default function AdminMatches() {
   const [dateTime, setDateTime] = useState('');
   const [location, setLocation] = useState('Campo Sportivo');
 
-  const { data: matches, isLoading } = useQuery({
+  const { data: matches, isLoading } = useQuery<{ ok: boolean; items: (Match & { inviteUrl: string })[] }>({
     queryKey: ['/api/admin/matches'],
   });
 

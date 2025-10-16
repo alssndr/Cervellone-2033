@@ -21,7 +21,7 @@ export default function InviteSignup({ params }: InviteSignupProps) {
   const [choice, setChoice] = useState<'STARTER' | 'RESERVE' | 'NEXT'>('STARTER');
   const [completed, setCompleted] = useState(false);
 
-  const { data: inviteData, isLoading } = useQuery({
+  const { data: inviteData, isLoading } = useQuery<{ ok: boolean; match?: any; error?: string }>({
     queryKey: [`/api/invite/${token}`],
   });
 
