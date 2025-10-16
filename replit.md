@@ -128,8 +128,10 @@ Preferred communication style: Simple, everyday language.
    - Variant selection system with circular buttons (v1, v2, v3, v!) positioned top-right above field
    - Real-time switching between lineup variants
    - Automatic field/radar/stats updates when variant changes
-   - Compact player management section at bottom with 2-column grid
-   - Context-aware "Aggiungi Giocatore" dialog for quick player additions
+   - **Giocatori Schierati section**: Shows enrolled players with dropdown to change status (Titolare/Riserva/Prossimo)
+   - **Aggiungi Giocatore section**: Shows only available players (not yet enrolled), prevents duplicates
+   - **Auto-rebalancing**: Automatically regenerates lineup variants after adding player or changing status
+   - Toast notifications: "Squadre ribilanciate automaticamente" after modifications
 
 4. **Admin Players Page Redesign** (`/admin/players`):
    - 2-column grid layout (md:grid-cols-2)

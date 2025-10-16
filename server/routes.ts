@@ -203,6 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createSignup({
         matchId,
         playerId: id,
+        phone: player.phone || '',
         status: status || 'STARTER',
       });
 
@@ -267,7 +268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name, surname, phone, ratings } = req.body;
       
       // Create user if phone provided
-      let userId = null;
+      let userId: string | undefined = undefined;
       if (phone) {
         const normalized = normalizeE164(phone);
         let user = await storage.getUserByPhone(normalized);
@@ -287,7 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         name,
         surname,
-        phone: phone ? normalizeE164(phone) : null,
+        phone: phone ? normalizeE164(phone) : '',
       });
 
       // Create ratings
