@@ -24,9 +24,11 @@ export default function AdminLogin() {
 
     setLoading(true);
     try {
-      const result = await apiRequest('POST', '/api/admin/login', { phone });
+      const response = await apiRequest('POST', '/api/admin/login', { phone });
+      const result = await response.json();
       
-      if (result.ok) {
+      if (result.ok && result.token) {
+        localStorage.setItem('admin_token', result.token);
         toast({
           title: 'Accesso effettuato',
           description: 'Benvenuto!',

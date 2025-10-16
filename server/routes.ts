@@ -50,7 +50,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-      res.cookie('admin_token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+      res.cookie('admin_token', token, { 
+        httpOnly: true, 
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: 'lax'
+      });
       res.json({ ok: true, token });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
