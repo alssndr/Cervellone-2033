@@ -11,9 +11,9 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
   const signups = await storage.getMatchSignups(matchId);
   const starters = signups.filter(s => s.status === 'STARTER');
   
-  const required = perTeam * 2;
-  if (starters.length < required) {
-    throw new Error(`Servono almeno ${required} giocatori titolari per ${match.sport}. Al momento: ${starters.length}`);
+  // Must have at least 1 player
+  if (starters.length === 0) {
+    throw new Error('Serve almeno 1 giocatore titolare per generare le squadre');
   }
 
   // Build rated players array

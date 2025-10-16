@@ -467,7 +467,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { phone } = req.query;
       
+      // DEBUG: Log data before building view
+      const teams = await storage.getMatchTeams(id);
+      const assignments = await storage.getMatchAssignments(id);
+      const signups = await storage.getMatchSignups(id);
+      console.log(`[PUBLIC VIEW] Match ${id}: ${teams.length} teams, ${assignments.length} team assignments, ${signups.length} signups`);
+      
       const view = await buildPublicMatchView(id, phone as string || '');
+      console.log(`[PUBLIC VIEW] Result: ${view.starters.light.length} light + ${view.starters.dark.length} dark starters`);
+      
       res.json({ ok: true, view });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
