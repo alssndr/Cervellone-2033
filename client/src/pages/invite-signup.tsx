@@ -27,7 +27,8 @@ export default function InviteSignup({ params }: InviteSignupProps) {
 
   const signupMutation = useMutation({
     mutationFn: async (data: { phone: string; choice: string }) => {
-      return await apiRequest('POST', `/api/invite/${token}/signup`, data);
+      const response = await apiRequest('POST', `/api/invite/${token}/signup`, data);
+      return await response.json();
     },
     onSuccess: (result) => {
       if (result.ok) {

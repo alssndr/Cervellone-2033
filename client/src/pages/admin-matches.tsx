@@ -23,7 +23,8 @@ export default function AdminMatches() {
 
   const createMatchMutation = useMutation({
     mutationFn: async (data: { sport: Sport; dateTime: string; location: string }) => {
-      return await apiRequest('POST', '/api/admin/matches', data);
+      const response = await apiRequest('POST', '/api/admin/matches', data);
+      return await response.json();
     },
     onSuccess: (result) => {
       if (result.ok) {
@@ -199,6 +200,21 @@ export default function AdminMatches() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const inviteUrl = (match as any).inviteUrl;
+                          if (inviteUrl) {
+                            navigator.clipboard.writeText(inviteUrl);
+                            toast({ title: 'Link copiato!', description: 'Invito copiato negli appunti' });
+                          }
+                        }}
+                        data-testid={`button-copy-invite-${match.id}`}
+                        data-invite-url={(match as any).inviteUrl}
+                      >
+                        Copia Invito
+                      </Button>
                       <Link href={`/matches/${match.id}`}>
                         <Button variant="outline" size="sm" data-testid={`button-view-${match.id}`}>
                           <ExternalLink className="w-4 h-4 mr-2" />

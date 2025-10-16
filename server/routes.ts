@@ -56,7 +56,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/matches', adminAuth, async (req, res) => {
     try {
       const matches = await storage.getAllMatches();
-      res.json({ ok: true, items: matches });
+      const matchesWithInvite = matches.map(match => {
+        const inviteToken = jwt.sign({ matchId: match.id }, JWT_SECRET, { expiresIn: '30d' });
+        const inviteUrl = `${req.protocol}://${req.get('host')}/invite/${inviteToken}`;
+        return { ...match, inviteUrl };
+      });
+      res.json({ ok: true, items: matchesWithInvite });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }

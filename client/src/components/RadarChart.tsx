@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import {
   Chart as ChartJS,
+  RadarController,
   RadialLinearScale,
   PointElement,
   LineElement,
@@ -12,6 +13,7 @@ import {
 import { AXES, AXIS_LABELS_IT } from '@shared/schema';
 
 ChartJS.register(
+  RadarController,
   RadialLinearScale,
   PointElement,
   LineElement,
@@ -99,7 +101,7 @@ export default function RadarChart({
               color: '#121212',
               font: {
                 size: 13,
-                weight: '500',
+                weight: 500,
               },
             },
           },
