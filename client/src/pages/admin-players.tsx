@@ -116,6 +116,13 @@ export default function AdminPlayers() {
     },
   });
 
+  const calculatePlayerAverage = (ratings: any) => {
+    if (!ratings) return 0;
+    const values = AXES.map(axis => ratings[axis] || 0);
+    const sum = values.reduce((a, b) => a + b, 0);
+    return (sum / values.length).toFixed(1);
+  };
+
   const createPlayerMutation = useMutation({
     mutationFn: async (data: typeof newPlayerData) => {
       const response = await apiRequest('POST', '/api/admin/players', data);
@@ -258,35 +265,40 @@ export default function AdminPlayers() {
         {/* Regular players */}
         <div>
           <h2 className="text-xl font-semibold mb-4 text-ink">Tutti i Giocatori</h2>
-          <div className="grid gap-4">
+          <div className="grid md:grid-cols-2 gap-4">
             {regularPlayers.map((player) => (
-              <Card key={player.id} data-testid={`card-player-${player.id}`}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <UserCircle className="w-8 h-8 text-inkMuted" />
-                    <div>
-                      <CardTitle className="text-lg">
-                        {player.name} {player.surname}
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">{player.phone}</p>
+              <Card key={player.id} data-testid={`card-player-${player.id}`} className="flex flex-col">
+                <CardHeader className="text-center pb-3">
+                  <UserCircle className="w-12 h-12 text-inkMuted mx-auto mb-2" />
+                  <CardTitle className="text-lg">
+                    {player.name} {player.surname}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">{player.phone || 'Nessun telefono'}</p>
+                  
+                  {/* Player Average - highlighted */}
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="text-4xl font-bold text-blueTeam">
+                      {calculatePlayerAverage(player.currentRatings)}
                     </div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Media</div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 flex flex-col">
                   <h4 className="text-sm font-semibold mb-3 text-inkMuted">Rating</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-y-2 gap-x-4 flex-1">
                     {AXES.map((axis) => (
                       <div key={axis} className="flex justify-between items-center">
-                        <span className="text-sm">{AXIS_LABELS_IT[axis as AxisKey]}</span>
+                        <span className="text-xs text-muted-foreground">{AXIS_LABELS_IT[axis as AxisKey]}</span>
                         <span className="text-sm font-semibold">
                           {player.currentRatings?.[axis] || '-'}
                         </span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t flex gap-2">
+                  <div className="mt-4 pt-4 border-t flex flex-col gap-2">
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => openEditDialog(player)}
                       data-testid={`button-edit-${player.id}`}
                     >
@@ -295,6 +307,7 @@ export default function AdminPlayers() {
                     </Button>
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => setAddingToMatch(player)}
                       data-testid={`button-add-to-match-${player.id}`}
                     >
