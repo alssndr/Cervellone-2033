@@ -108,8 +108,9 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       const response = await apiRequest('POST', `/api/admin/matches/${id}/apply-lineup`, { lineupVersionId });
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+    onSuccess: async () => {
+      // Force refetch to get updated team assignments
+      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       toast({
         title: 'Variante applicata!',
         description: 'Le squadre aggiornate',
@@ -146,7 +147,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         await applyVariantMutation.mutateAsync(firstVariant.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       
       toast({
@@ -189,7 +190,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         await applyVariantMutation.mutateAsync(firstVariant.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       
       toast({

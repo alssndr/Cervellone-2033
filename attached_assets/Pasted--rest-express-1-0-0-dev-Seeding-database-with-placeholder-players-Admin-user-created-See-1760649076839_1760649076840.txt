@@ -1,0 +1,40 @@
+
+> rest-express@1.0.0 dev
+🌱 Seeding database with placeholder players...
+✅ Admin user created
+✅ Seed complete: 22 players in database
+✅ Created 3 sample matches
+9:10:26 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 12 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+9:10:51 PM [express] POST /api/admin/login 200 in 3ms :: {"ok":true,"token":"eyJhbGciOiJIUzI1NiIsInR…
+9:10:51 PM [express] GET /api/admin/matches 200 in 4ms :: {"ok":true,"items":[{"sport":"EIGHT","date…
+[PUBLIC VIEW] Match fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3: 2 teams, 0 team assignments, 0 signups
+[PUBLIC VIEW] Result: 0 light + 0 dark starters
+9:10:57 PM [express] GET /api/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/public 200 in 2ms :: {"ok…
+9:10:57 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/signups 200 in 1ms …
+9:10:57 PM [express] GET /api/admin/players 200 in 1ms :: {"ok":true,"players":[{"userId":"585c54d8-…
+9:10:57 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/lineups 200 in 1ms …
+9:10:57 PM [express] POST /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/generate-lineups 5…
+9:11:01 PM [express] POST /api/admin/players/b9d774ea-053d-4e81-8d67-b02b87a3ab71/add-to-match 200 i…
+[generateLineupVariants] Creating lineup assignments for GREEDY version: 1 light + 0 dark
+9:11:01 PM [express] POST /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/generate-lineups 2…
+9:11:01 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/lineups 200 in 2ms …
+9:11:01 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/lineups 200 in 1ms …
+9:11:01 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/lineups 304 in 1ms …
+[applyLineupVersion] START - applying lineup version eea44ae2-c878-495d-9fbc-6702d4db33fa
+[applyLineupVersion] Retrieved 1 lineup assignments from storage
+[applyLineupVersion] Found 1 lineup assignments to apply
+[applyLineupVersion] Creating team assignment: player=b9d774ea-053d-4e81-8d67-b02b87a3ab71, team=LIGHT, teamId=79b6a791-72ea-4fc7-a20f-670523772569
+[applyLineupVersion] VERIFICATION: Light team has 1 assignments, Dark team has 0 assignments
+9:11:01 PM [express] POST /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/apply-lineup 200 i…
+[applyLineupVersion] START - applying lineup version eea44ae2-c878-495d-9fbc-6702d4db33fa
+[applyLineupVersion] Retrieved 1 lineup assignments from storage
+[applyLineupVersion] Found 1 lineup assignments to apply
+[applyLineupVersion] Creating team assignment: player=b9d774ea-053d-4e81-8d67-b02b87a3ab71, team=LIGHT, teamId=79b6a791-72ea-4fc7-a20f-670523772569
+[applyLineupVersion] VERIFICATION: Light team has 1 assignments, Dark team has 0 assignments
+9:11:01 PM [express] POST /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/apply-lineup 200 i…
+9:11:01 PM [express] GET /api/admin/matches/fa838e2f-ae09-4a34-9ffc-5fb54eaac4b3/signups 200 in 2ms …
