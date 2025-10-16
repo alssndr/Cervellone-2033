@@ -76,6 +76,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     queryKey: ['/api/admin/players'],
   });
 
+  // Fetch match signups
+  const { data: signupsData } = useQuery<{ ok: boolean; signups: any[] }>({
+    queryKey: ['/api/admin/matches', id, 'signups'],
+  });
+
   // Generate variants mutation
   const generateVariantsMutation = useMutation({
     mutationFn: async () => {
@@ -126,9 +131,37 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       setAddingPlayer(null);
       setSelectedStatus('STARTER');
       queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       toast({
         title: 'Giocatore aggiunto',
         description: 'Il giocatore è stato iscritto alla partita',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: error.message,
+      });
+    },
+  });
+
+  // Update signup status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ signupId, status }: { signupId: string; status: string }) => {
+      const response = await apiRequest('PATCH', `/api/admin/signups/${signupId}/status`, { status });
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Errore sconosciuto');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
+      toast({
+        title: 'Stato aggiornato',
+        description: 'Lo stato del giocatore è stato modificato',
       });
     },
     onError: (error: Error) => {
@@ -204,6 +237,28 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
 
   const { match, starters, reserves, radar } = matchData.view;
   const topVariants = variantsData?.variants?.slice(0, 3) || [];
+
+  // Get enrolled player IDs
+  const enrolledPlayerIds = new Set(
+    signupsData?.signups?.map(s => s.playerId) || []
+  );
+
+  // Filter available players (not yet enrolled)
+  const availablePlayers = playersData?.players?.filter(
+    p => !enrolledPlayerIds.has(p.id)
+  ) || [];
+
+  // Enrolled players with signup info
+  const enrolledPlayers = signupsData?.signups || [];
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'STARTER': return 'Titolare';
+      case 'RESERVE': return 'Riserva';
+      case 'NEXT': return 'Prossimo';
+      default: return status;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-paper">
@@ -314,42 +369,104 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
           />
         </div>
 
-        {/* Compact Players Section */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Aggiungi Giocatore</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            {playersData?.players?.map((player: any) => (
-              <div
-                key={player.id}
-                className="border border-gray-200 rounded-lg p-4 hover:border-blueTeam transition-colors"
-                data-testid={`player-compact-${player.id}`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-sm">
-                      {player.name} {player.surname}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">{player.phone || 'Nessun telefono'}</p>
-                    <div className="mt-2">
-                      <span className="text-2xl font-bold text-blueTeam">
-                        {calculatePlayerAverage(player.currentRatings)}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-1">media</span>
+        {/* Enrolled Players Section */}
+        {enrolledPlayers.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-4">Giocatori Schierati ({enrolledPlayers.length})</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              {enrolledPlayers.map((signup: any) => (
+                <div
+                  key={signup.signupId}
+                  className="border border-gray-200 rounded-lg p-4"
+                  data-testid={`enrolled-player-${signup.playerId}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm">
+                        {signup.player?.name} {signup.player?.surname}
+                      </h3>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {signup.player?.phone || 'Nessun telefono'}
+                      </p>
+                      <div className="mt-2">
+                        <span className="text-2xl font-bold text-blueTeam">
+                          {calculatePlayerAverage(signup.ratings)}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1">media</span>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 w-32">
+                      <Select 
+                        value={signup.status} 
+                        onValueChange={(newStatus) => {
+                          updateStatusMutation.mutate({
+                            signupId: signup.signupId,
+                            status: newStatus,
+                          });
+                        }}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="STARTER">Titolare</SelectItem>
+                          <SelectItem value="RESERVE">Riserva</SelectItem>
+                          <SelectItem value="NEXT">Prossimo</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAddingPlayer(player)}
-                    data-testid={`button-add-player-${player.id}`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                  </Button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Available Players Section */}
+        {availablePlayers.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold mb-4">Aggiungi Giocatore ({availablePlayers.length} disponibili)</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              {availablePlayers.map((player: any) => (
+                <div
+                  key={player.id}
+                  className="border border-gray-200 rounded-lg p-4 hover:border-blueTeam transition-colors"
+                  data-testid={`player-compact-${player.id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">
+                        {player.name} {player.surname}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">{player.phone || 'Nessun telefono'}</p>
+                      <div className="mt-2">
+                        <span className="text-2xl font-bold text-blueTeam">
+                          {calculatePlayerAverage(player.currentRatings)}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1">media</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddingPlayer(player)}
+                      data-testid={`button-add-player-${player.id}`}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {availablePlayers.length === 0 && enrolledPlayers.length === 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <p className="text-muted-foreground">Nessun giocatore disponibile</p>
+          </div>
+        )}
       </div>
 
       {/* Add Player Dialog */}
