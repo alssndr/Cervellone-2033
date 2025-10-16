@@ -28,14 +28,9 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
     })
   );
 
-  // DELETE ALL OLD VARIANTS AND ASSIGNMENTS FOR THIS MATCH
+  // Get existing lineup count for ordinal
   const existingLineups = await storage.getMatchLineupVersions(matchId);
-  for (const oldVersion of existingLineups) {
-    await storage.deleteLineupAssignments(oldVersion.id);
-    await storage.deleteLineupVersion(oldVersion.id);
-  }
-  
-  let ordinal = 0; // Always start from 0 since we deleted old ones
+  let ordinal = existingLineups.length;
 
   const versionIds: string[] = [];
 
@@ -52,20 +47,28 @@ export async function generateLineupVariants(matchId: string, count: number = 5)
 
   // Create assignments for greedy version
   console.log(`[generateLineupVariants] Creating lineup assignments for GREEDY version: ${greedyResult.light.length} light + ${greedyResult.dark.length} dark`);
+  console.log(`[generateLineupVariants] Version ID: ${greedyVersion.id}`);
+  
   for (const playerId of greedyResult.light) {
-    await storage.createLineupAssignment({
+    const assignment = await storage.createLineupAssignment({
       lineupVersionId: greedyVersion.id,
       teamSide: 'LIGHT',
       playerId,
     });
+    console.log(`[generateLineupVariants] Created LIGHT assignment: ${assignment.id} for player ${playerId}`);
   }
   for (const playerId of greedyResult.dark) {
-    await storage.createLineupAssignment({
+    const assignment = await storage.createLineupAssignment({
       lineupVersionId: greedyVersion.id,
       teamSide: 'DARK',
       playerId,
     });
+    console.log(`[generateLineupVariants] Created DARK assignment: ${assignment.id} for player ${playerId}`);
   }
+  
+  // Verify assignments were saved
+  const savedAssignments = await storage.getLineupAssignments(greedyVersion.id);
+  console.log(`[generateLineupVariants] VERIFICATION: Saved ${savedAssignments.length} assignments for version ${greedyVersion.id}`);
 
   // Generate random seeded variants
   for (let i = 1; i < count; i++) {
