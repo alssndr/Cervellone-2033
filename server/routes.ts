@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
+import { generateLineupVariants, applyLineupVersion, getLineupVariants } from "./services/lineup";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' 
@@ -99,6 +100,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate lineup variants (admin)
+  app.post('/api/admin/matches/:id/generate-lineups', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { count = 5 } = req.body;
+      const versionIds = await generateLineupVariants(id, count);
+      res.json({ ok: true, versionIds, count: versionIds.length });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Get lineup variants (admin)
+  app.get('/api/admin/matches/:id/lineups', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const variants = await getLineupVariants(id);
+      res.json({ ok: true, variants });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Apply lineup variant (admin)
+  app.post('/api/admin/matches/:id/apply-lineup', adminAuth, async (req, res) => {
+    try {
+      const { lineupVersionId } = req.body;
+      await applyLineupVersion(lineupVersionId);
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Get all players with suggested ratings (admin)
+  app.get('/api/admin/players', adminAuth, async (req, res) => {
+    try {
+      const players = await storage.getAllPlayers();
+      const playersWithDetails = await Promise.all(
+        players.map(async (player) => {
+          const ratings = await storage.getPlayerRatings(player.id);
+          const suggestedRatingsLogs = await storage.getAuditLogs('Player', player.id);
+          const latestSuggestion = suggestedRatingsLogs.find(log => log.action === 'RATING_SUGGEST');
+          
+          return {
+            ...player,
+            currentRatings: ratings,
+            suggestedRatings: latestSuggestion?.payload || null,
+            hasSuggestion: !!latestSuggestion,
+          };
+        })
+      );
+      res.json({ ok: true, players: playersWithDetails });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Approve/update player ratings (admin)
+  app.post('/api/admin/players/:id/approve-ratings', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { ratings } = req.body;
+      await storage.updatePlayerRatings(id, ratings);
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   // Get invite info
   app.get('/api/invite/:token', async (req, res) => {
     try {
@@ -134,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/invite/:token/signup', async (req, res) => {
     try {
       const { token } = req.params;
-      const { phone, choice } = req.body;
+      const { phone, name, surname, choice, suggestedRatings } = req.body;
       const normalized = normalizeE164(phone);
 
       const payload: any = jwt.verify(token, JWT_SECRET);
@@ -146,28 +217,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get or create player
       let player = await storage.getPlayerByPhone(normalized);
+      let isNewPlayer = false;
+      
       if (!player) {
+        isNewPlayer = true;
         let user = await storage.getUserByPhone(normalized);
         if (!user) {
-          user = await storage.createUser({ phone: normalized, role: 'USER' });
+          user = await storage.createUser({ 
+            phone: normalized, 
+            role: 'USER',
+            name,
+            surname,
+          });
         }
         player = await storage.createPlayer({
           userId: user.id,
-          name: '',
-          surname: '',
+          name,
+          surname,
           phone: normalized,
         });
+      } else {
+        // Update player name/surname if provided
+        await storage.updatePlayer(player.id, { name, surname });
+      }
 
-        // Create basic ratings for new player
-        await storage.createPlayerRatings({
-          playerId: player.id,
-          defense: 3,
-          attack: 3,
-          speed: 3,
-          power: 3,
-          technique: 3,
-          shot: 3,
+      // Handle suggested ratings
+      if (suggestedRatings) {
+        // Log suggested ratings to audit
+        await storage.createAuditLog({
+          actorUserId: player.userId,
+          action: 'RATING_SUGGEST',
+          entity: 'Player',
+          entityId: player.id,
+          payload: suggestedRatings,
         });
+
+        // If new player or no ratings exist, use suggested ratings
+        const existingRatings = await storage.getPlayerRatings(player.id);
+        if (!existingRatings) {
+          await storage.createPlayerRatings({
+            playerId: player.id,
+            ...suggestedRatings,
+          });
+        }
+      } else {
+        // Create default ratings if none exist
+        const existingRatings = await storage.getPlayerRatings(player.id);
+        if (!existingRatings) {
+          await storage.createPlayerRatings({
+            playerId: player.id,
+            defense: 3,
+            attack: 3,
+            speed: 3,
+            power: 3,
+            technique: 3,
+            shot: 3,
+          });
+        }
       }
 
       // Determine status

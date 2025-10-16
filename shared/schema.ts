@@ -6,12 +6,14 @@ export const Sport = z.enum(['THREE', 'FIVE', 'EIGHT', 'ELEVEN']);
 export const MatchStatus = z.enum(['OPEN', 'FROZEN', 'CLOSED']);
 export const SignupStatus = z.enum(['STARTER', 'RESERVE', 'NEXT']);
 export const TeamSide = z.enum(['LIGHT', 'DARK']);
+export const Algo = z.enum(['GREEDY_LOCAL', 'RANDOM_SEEDED']);
 
 export type Role = z.infer<typeof Role>;
 export type Sport = z.infer<typeof Sport>;
 export type MatchStatus = z.infer<typeof MatchStatus>;
 export type SignupStatus = z.infer<typeof SignupStatus>;
 export type TeamSide = z.infer<typeof TeamSide>;
+export type Algo = z.infer<typeof Algo>;
 
 // User schema
 export const insertUserSchema = z.object({
@@ -131,9 +133,61 @@ export const teamAssignmentSchema = insertTeamAssignmentSchema.extend({
 export type InsertTeamAssignment = z.infer<typeof insertTeamAssignmentSchema>;
 export type TeamAssignment = z.infer<typeof teamAssignmentSchema>;
 
+// LineupVersion schema
+export const insertLineupVersionSchema = z.object({
+  matchId: z.string(),
+  ordinal: z.number().int(),
+  algo: Algo,
+  seed: z.number().int().optional(),
+  score: z.number(),
+  recommended: z.boolean().default(false),
+});
+
+export const lineupVersionSchema = insertLineupVersionSchema.extend({
+  id: z.string(),
+  createdAt: z.date(),
+});
+
+export type InsertLineupVersion = z.infer<typeof insertLineupVersionSchema>;
+export type LineupVersion = z.infer<typeof lineupVersionSchema>;
+
+// LineupAssignment schema
+export const insertLineupAssignmentSchema = z.object({
+  lineupVersionId: z.string(),
+  teamSide: TeamSide,
+  playerId: z.string(),
+  position: z.string().optional(),
+});
+
+export const lineupAssignmentSchema = insertLineupAssignmentSchema.extend({
+  id: z.string(),
+});
+
+export type InsertLineupAssignment = z.infer<typeof insertLineupAssignmentSchema>;
+export type LineupAssignment = z.infer<typeof lineupAssignmentSchema>;
+
+// AuditLog schema
+export const insertAuditLogSchema = z.object({
+  actorUserId: z.string().optional(),
+  action: z.string(),
+  entity: z.string(),
+  entityId: z.string().optional(),
+  payload: z.any().optional(),
+});
+
+export const auditLogSchema = insertAuditLogSchema.extend({
+  id: z.string(),
+  createdAt: z.date(),
+});
+
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = z.infer<typeof auditLogSchema>;
+
 // Invite Signup Request (for API)
 export const inviteSignupRequestSchema = z.object({
   phone: z.string(),
+  name: z.string().min(1),
+  surname: z.string().min(1),
   choice: z.enum(['STARTER', 'RESERVE', 'NEXT']),
   suggestedRatings: z.object({
     defense: z.number().int().min(1).max(5),
@@ -142,7 +196,7 @@ export const inviteSignupRequestSchema = z.object({
     power: z.number().int().min(1).max(5),
     technique: z.number().int().min(1).max(5),
     shot: z.number().int().min(1).max(5),
-  }).optional(),
+  }),
 });
 
 export type InviteSignupRequest = z.infer<typeof inviteSignupRequestSchema>;

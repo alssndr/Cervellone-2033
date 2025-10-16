@@ -42,6 +42,33 @@ function computeAxisMeans(players: RatedPlayer[]): { means: Record<string, numbe
   return { means, teamMean };
 }
 
+// Seeded random number generator for reproducible results
+function seededRandom(seed: number) {
+  return function() {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+}
+
+export function balanceRandomSeeded(players: RatedPlayer[], perTeamSize: number, seed: number): TeamAssignmentResult {
+  const rng = seededRandom(seed);
+  const shuffled = [...players].sort(() => rng() - 0.5);
+  
+  const A: RatedPlayer[] = shuffled.slice(0, perTeamSize);
+  const B: RatedPlayer[] = shuffled.slice(perTeamSize, perTeamSize * 2);
+
+  const { means: Am, teamMean: AmM } = computeAxisMeans(A);
+  const { means: Bm, teamMean: BmM } = computeAxisMeans(B);
+  const score = scoreTeams(Am, Bm, AmM, BmM);
+
+  return {
+    light: A.map(p => p.playerId),
+    dark: B.map(p => p.playerId),
+    score,
+    axisMeans: { light: Am, dark: Bm },
+  };
+}
+
 export function balanceGreedyLocal(players: RatedPlayer[], perTeamSize: number, kSwaps = 200): TeamAssignmentResult {
   const sorted = [...players].sort((a, b) => {
     const am = playerMean(a.ratings);

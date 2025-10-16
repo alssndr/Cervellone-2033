@@ -4,9 +4,10 @@ import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { normalizeE164 } from '@shared/schema';
+import { normalizeE164, AXIS_LABELS_IT, type AxisKey, AXES } from '@shared/schema';
 import { CheckCircle2, Calendar, MapPin, Users } from 'lucide-react';
 
 interface InviteSignupProps {
@@ -18,7 +19,17 @@ export default function InviteSignup({ params }: InviteSignupProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
   const [choice, setChoice] = useState<'STARTER' | 'RESERVE' | 'NEXT'>('STARTER');
+  const [ratings, setRatings] = useState({
+    defense: 3,
+    attack: 3,
+    speed: 3,
+    power: 3,
+    technique: 3,
+    shot: 3,
+  });
   const [completed, setCompleted] = useState(false);
 
   const { data: inviteData, isLoading } = useQuery<{ ok: boolean; match?: any; error?: string }>({
@@ -26,7 +37,7 @@ export default function InviteSignup({ params }: InviteSignupProps) {
   });
 
   const signupMutation = useMutation({
-    mutationFn: async (data: { phone: string; choice: string }) => {
+    mutationFn: async (data: { phone: string; name: string; surname: string; choice: string; suggestedRatings: any }) => {
       const response = await apiRequest('POST', `/api/invite/${token}/signup`, data);
       return await response.json();
     },
@@ -37,7 +48,6 @@ export default function InviteSignup({ params }: InviteSignupProps) {
           title: 'Iscrizione completata!',
           description: 'Sei stato registrato alla partita',
         });
-        // Redirect to match view after 2 seconds
         setTimeout(() => {
           setLocation(`/matches/${result.matchId}`);
         }, 2000);
@@ -61,8 +71,23 @@ export default function InviteSignup({ params }: InviteSignupProps) {
       return;
     }
 
+    if (!name.trim() || !surname.trim()) {
+      toast({
+        title: 'Dati incompleti',
+        description: 'Inserisci nome e cognome',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const normalized = normalizeE164(phone);
-    signupMutation.mutate({ phone: normalized, choice });
+    signupMutation.mutate({ 
+      phone: normalized, 
+      name: name.trim(),
+      surname: surname.trim(),
+      choice, 
+      suggestedRatings: ratings 
+    });
   };
 
   if (isLoading) {
@@ -144,6 +169,32 @@ export default function InviteSignup({ params }: InviteSignupProps) {
           <h2 className="text-lg font-semibold mb-6">Completa la tua iscrizione</h2>
           
           <div className="space-y-6">
+            {/* Personal Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Mario"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  data-testid="input-name-signup"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="surname">Cognome</Label>
+                <Input
+                  id="surname"
+                  type="text"
+                  placeholder="Rossi"
+                  value={surname}
+                  onChange={(e) => setSurname(e.target.value)}
+                  data-testid="input-surname-signup"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="phone">Numero di Telefono</Label>
               <Input
@@ -152,15 +203,44 @@ export default function InviteSignup({ params }: InviteSignupProps) {
                 placeholder="+39 333 1234567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSignup()}
                 data-testid="input-phone-signup"
               />
-              <p className="text-xs text-muted-foreground">
-                Il sistema riconoscerà automaticamente il tuo profilo giocatore
-              </p>
             </div>
 
-            <div className="space-y-3">
+            {/* Rating Sliders */}
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Auto-valutazione abilità</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Valuta le tue abilità da 1 (minimo) a 5 (massimo). Questo aiuterà a bilanciare meglio le squadre.
+                </p>
+              </div>
+
+              {AXES.map((axis) => (
+                <div key={axis} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor={`rating-${axis}`} className="text-sm">
+                      {AXIS_LABELS_IT[axis as AxisKey]}
+                    </Label>
+                    <span className="text-sm font-semibold text-blueTeam" data-testid={`text-rating-${axis}`}>
+                      {ratings[axis as keyof typeof ratings]}
+                    </span>
+                  </div>
+                  <Slider
+                    id={`rating-${axis}`}
+                    min={1}
+                    max={5}
+                    step={1}
+                    value={[ratings[axis as keyof typeof ratings]]}
+                    onValueChange={(value) => setRatings(prev => ({ ...prev, [axis]: value[0] }))}
+                    data-testid={`slider-rating-${axis}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Availability Choice */}
+            <div className="space-y-3 pt-4 border-t">
               <Label>Disponibilità</Label>
               
               <div className="grid gap-3">

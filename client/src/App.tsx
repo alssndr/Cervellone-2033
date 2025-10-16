@@ -7,6 +7,7 @@ import Home from "@/pages/home";
 import Demo from "@/pages/demo";
 import AdminLogin from "@/pages/admin-login";
 import AdminMatches from "@/pages/admin-matches";
+import AdminPlayers from "@/pages/admin-players";
 import MatchViewPage from "@/pages/match-view";
 import InviteSignup from "@/pages/invite-signup";
 import NotFound from "@/pages/not-found";
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/demo" component={Demo} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/matches" component={AdminMatches} />
+      <Route path="/admin/players" component={AdminPlayers} />
       <Route path="/matches/:id">
         {(params) => <MatchViewPage params={params} />}
       </Route>
