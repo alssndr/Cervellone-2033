@@ -93,6 +93,26 @@ Preferred communication style: Simple, everyday language.
 6. Admin selects and applies preferred variant → updates match teams
 7. Public match view displays balanced teams with statistics
 
+**Admin Player Management Features** (Added October 2025):
+
+1. **Edit Player Ratings**: Admin can modify any player's 6 athletic ratings through a dialog interface with sliders. Changes are saved immediately and reflected across all match lineups.
+   - Endpoint: `PATCH /api/admin/players/:id/ratings`
+   - UI: Edit button on each player card opens rating modification dialog
+
+2. **Add Player to Match Manually**: Admin can manually add any existing player to a match without requiring an invite link. Allows selection of match and player status (Starter/Reserve/Next).
+   - Endpoint: `POST /api/admin/players/:id/add-to-match`
+   - UI: "Aggiungi a Partita" button on player cards opens match selection dialog
+
+3. **Create Player Manually**: Admin can create new players directly without requiring signup via invite link. Form includes name, surname, optional phone number, and initial 6 athletic ratings.
+   - Endpoint: `POST /api/admin/players`
+   - UI: "Crea Giocatore" button at top of players page opens creation dialog
+   - Automatically creates associated user record if phone number provided
+
+**Seed Data**:
+- 22 placeholder players with randomized ratings (pre-seeded on startup)
+- 3 sample matches for testing (ELEVEN/11v11, EIGHT/8v8, FIVE/5v5)
+- Admin user: phone +39 333 0000000
+
 ### External Dependencies
 
 **Third-Party Services**:

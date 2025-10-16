@@ -182,7 +182,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const player = await storage.getPlayer(id);
       if (!player) {
-        return res.status(404).json({ ok: false, error: 'Player not found' });
+        return res.status(404).json({ ok: false, error: 'Giocatore non trovato' });
+      }
+
+      // Validate match exists and is OPEN
+      const match = await storage.getMatch(matchId);
+      if (!match) {
+        return res.status(404).json({ ok: false, error: 'Partita non trovata' });
+      }
+      if (match.status !== 'OPEN') {
+        return res.status(400).json({ ok: false, error: 'La partita non è aperta alle iscrizioni' });
+      }
+
+      // Check for duplicate signup
+      const existingSignup = await storage.getSignup(matchId, id);
+      if (existingSignup) {
+        return res.status(400).json({ ok: false, error: 'Il giocatore è già iscritto a questa partita' });
       }
 
       await storage.createSignup({

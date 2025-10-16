@@ -1,5 +1,8 @@
 import { storage } from './storage';
 import { normalizeE164 } from '@shared/schema';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
 const NAMES = [
   'Luca', 'Marco', 'Giulia', 'Sara', 'Paolo', 'Francesco', 'Chiara', 'Marta', 
@@ -76,4 +79,56 @@ export async function seedPlayers() {
 
   const allPlayers = await storage.getAllPlayers();
   console.log(`✅ Seed complete: ${allPlayers.length} players in database`);
+  
+  // Create sample matches
+  await seedMatches(admin.id);
+}
+
+async function seedMatches(adminId: string) {
+  // Check if matches already exist
+  const existingMatches = await storage.getAllMatches();
+  if (existingMatches.length > 0) {
+    console.log(`ℹ️  ${existingMatches.length} matches already exist, skipping match seed`);
+    return;
+  }
+
+  // Create 3 sample matches
+  const matchesData = [
+    {
+      sport: 'ELEVEN' as const,
+      dateTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
+      location: 'Campo Sportivo Comunale',
+      status: 'OPEN' as const,
+    },
+    {
+      sport: 'EIGHT' as const,
+      dateTime: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks from now
+      location: 'Centro Sportivo Parco Nord',
+      status: 'OPEN' as const,
+    },
+    {
+      sport: 'FIVE' as const,
+      dateTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
+      location: 'Palazzetto dello Sport',
+      status: 'OPEN' as const,
+    },
+  ];
+
+  for (const matchData of matchesData) {
+    const match = await storage.createMatch({
+      ...matchData,
+      createdBy: adminId,
+      teamNameLight: 'Chiari',
+      teamNameDark: 'Scuri',
+    });
+
+    // Create teams
+    await storage.createTeam({ matchId: match.id, name: 'LIGHT' });
+    await storage.createTeam({ matchId: match.id, name: 'DARK' });
+
+    // Generate invite token (not strictly necessary for seed, but keeps data consistent)
+    const inviteToken = jwt.sign({ matchId: match.id }, JWT_SECRET, { expiresIn: '30d' });
+  }
+
+  console.log(`✅ Created ${matchesData.length} sample matches`);
 }
