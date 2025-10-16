@@ -8,7 +8,7 @@ export default function Home() {
         {/* Hero Section */}
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-ink mb-4" data-testid="text-title">
-            Squadre Bilanciate
+            Cervellone 2.0
           </h1>
           <p className="text-xl text-inkMuted max-w-2xl mx-auto">
             Sistema intelligente per la creazione e il bilanciamento automatico di squadre sportive
