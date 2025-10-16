@@ -35,6 +35,10 @@ Preferred communication style: Simple, everyday language.
 - Custom color palette optimized for outdoor/mobile viewing with high contrast
 - Light mode primary with dark mode support
 - Design emphasizes clarity, action-oriented workflows, and data legibility
+- **Team Colors** (Updated October 2025):
+  - Squadra Chiara (LIGHT): #fc0fc0 (rosa/magenta)
+  - Squadra Scura (DARK): #0000ff (blu)
+  - Applied in: Radar charts, field visualization, player badges
 
 ### Backend Architecture
 
