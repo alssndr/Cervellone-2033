@@ -138,11 +138,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       // Regenerate lineups to include the new player
       await generateVariantsMutation.mutateAsync();
       
-      // Wait a bit for cache to clear, then fetch fresh
+      // Wait a bit for cache to clear, then fetch fresh WITH AUTH
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Fetch directly from server (bypass all cache)
-      const response = await fetch(`/api/admin/matches/${id}/lineups`);
+      // Fetch directly from server with authentication (bypass all cache)
+      const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
       const lineupsData = await response.json();
       
       if (lineupsData?.variants && lineupsData.variants.length > 0) {
@@ -184,11 +184,11 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       setSelectedVariant(null);
       await generateVariantsMutation.mutateAsync();
       
-      // Wait a bit, then fetch fresh from server
+      // Wait a bit, then fetch fresh from server WITH AUTH
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Fetch directly from server (bypass all cache)
-      const response = await fetch(`/api/admin/matches/${id}/lineups`);
+      // Fetch directly from server with authentication (bypass all cache)
+      const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
       const lineupsData = await response.json();
       
       if (lineupsData?.variants && lineupsData.variants.length > 0) {

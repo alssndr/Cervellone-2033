@@ -4,7 +4,24 @@
 
 This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
 
-**Status**: ✅ Production Ready - Full feature set with variant system, player management, and visual team displays (October 2025)
+**Status**: ✅ Production Ready - Full feature set with variant system, player management, visual team displays, and authenticated lineup refresh (October 16, 2025)
+
+## Recent Bug Fixes (October 16, 2025)
+
+**Critical Fix: Lineup Variant Application Issue**
+
+**Problem:** When adding players to a match, the system would generate new lineup variants correctly (visible in backend logs showing "3 light + 3 dark"), but the frontend would always apply the first/oldest variant (with only 1 player) instead of the newly generated ones.
+
+**Root Cause:** The `fetch()` call to `/api/admin/matches/:id/lineups` was missing JWT authentication cookies, resulting in 401 responses. This caused the frontend to fall back to cached data containing old variant IDs.
+
+**Solution:** 
+1. Use `apiRequest()` instead of plain `fetch()` to include authentication headers
+2. Reset `selectedVariant` state to null before regenerating
+3. Add 100ms delay to ensure backend completes variant creation
+4. Fetch fresh variants WITH authentication
+5. Apply the newly generated variant (first in the list)
+
+**Verification:** Backend logs now show correct variant IDs being applied after generation. Console logs include `[ADD_PLAYER]` and `[UPDATE_STATUS]` markers for debugging.
 
 ## User Preferences
 
