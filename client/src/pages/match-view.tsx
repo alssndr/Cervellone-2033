@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TeamPanel from '@/components/TeamPanel';
 import RadarChart from '@/components/RadarChart';
 import FieldView from '@/components/FieldView';
-import TextView from '@/components/TextView';
 import { type MatchView } from '@shared/schema';
 import { MapPin, Calendar, Users } from 'lucide-react';
 
@@ -148,15 +146,14 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
           </div>
         </div>
 
-        {/* Team Stats */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <TeamPanel 
-            teamLabel={`${match.teamNameLight} — Medie`}
-            axisMeans={radar.light}
-          />
-          <TeamPanel 
-            teamLabel={`${match.teamNameDark} — Medie`}
-            axisMeans={radar.dark}
+        {/* Field View */}
+        <div className="mb-8">
+          <FieldView
+            sport={match.sport}
+            lightStarters={starters.light}
+            darkStarters={starters.dark}
+            reservesLight={reserves.light}
+            reservesDark={reserves.dark}
           />
         </div>
 
@@ -173,32 +170,17 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
           />
         </div>
 
-        {/* Team Views */}
-        <Tabs defaultValue="field" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-6">
-            <TabsTrigger value="field" data-testid="tab-field">Vista Campo</TabsTrigger>
-            <TabsTrigger value="text" data-testid="tab-text">Vista Testo</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="field">
-            <FieldView
-              sport={match.sport}
-              lightStarters={starters.light}
-              darkStarters={starters.dark}
-              reservesLight={reserves.light}
-              reservesDark={reserves.dark}
-            />
-          </TabsContent>
-          
-          <TabsContent value="text">
-            <TextView
-              lightStarters={starters.light}
-              darkStarters={starters.dark}
-              reservesLight={reserves.light}
-              reservesDark={reserves.dark}
-            />
-          </TabsContent>
-        </Tabs>
+        {/* Team Stats */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <TeamPanel 
+            teamLabel={`${match.teamNameLight} — Medie`}
+            axisMeans={radar.light}
+          />
+          <TeamPanel 
+            teamLabel={`${match.teamNameDark} — Medie`}
+            axisMeans={radar.dark}
+          />
+        </div>
       </div>
     </div>
   );
