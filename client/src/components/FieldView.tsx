@@ -35,7 +35,7 @@ export default function FieldView({
         <h3 className="text-lg font-semibold mb-4">Campo {getSportLabel(sport)}</h3>
         
         {/* Campo da gioco */}
-        <div className="relative bg-green-700 rounded-lg p-8 min-h-[400px]" style={{
+        <div className="relative bg-green-700 rounded-lg p-8 min-h-[500px]" style={{
           backgroundImage: `repeating-linear-gradient(
             0deg,
             rgba(255,255,255,0.1) 0px,
