@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { AXIS_LABELS_IT, type AxisKey, AXES } from '@shared/schema';
-import { UserCircle, CheckCircle } from 'lucide-react';
+import { UserCircle, CheckCircle, Edit } from 'lucide-react';
 
 interface PlayerWithRatings {
   id: string;
@@ -19,6 +23,8 @@ interface PlayerWithRatings {
 
 export default function AdminPlayers() {
   const { toast } = useToast();
+  const [editingPlayer, setEditingPlayer] = useState<PlayerWithRatings | null>(null);
+  const [editedRatings, setEditedRatings] = useState<Record<string, number>>({});
 
   const { data, isLoading } = useQuery<{ ok: boolean; players: PlayerWithRatings[] }>({
     queryKey: ['/api/admin/players'],
@@ -44,6 +50,30 @@ export default function AdminPlayers() {
       });
     },
   });
+
+  const updateRatingsMutation = useMutation({
+    mutationFn: async ({ playerId, ratings }: { playerId: string; ratings: any }) => {
+      const response = await apiRequest('POST', `/api/admin/players/${playerId}/approve-ratings`, { ratings });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/players'] });
+      setEditingPlayer(null);
+      toast({
+        title: 'Rating aggiornati',
+        description: 'I rating sono stati modificati con successo',
+      });
+    },
+  });
+
+  const openEditDialog = (player: PlayerWithRatings) => {
+    setEditingPlayer(player);
+    const ratings: Record<string, number> = {};
+    AXES.forEach(axis => {
+      ratings[axis] = player.currentRatings?.[axis] || 3;
+    });
+    setEditedRatings(ratings);
+  };
 
   if (isLoading) {
     return (
@@ -177,12 +207,71 @@ export default function AdminPlayers() {
                       </div>
                     ))}
                   </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => openEditDialog(player)}
+                      data-testid={`button-edit-${player.id}`}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Modifica Rating
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Edit Ratings Dialog */}
+      <Dialog open={!!editingPlayer} onOpenChange={(open) => !open && setEditingPlayer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Modifica Rating - {editingPlayer?.name} {editingPlayer?.surname}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {AXES.map((axis) => (
+              <div key={axis} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor={`rating-${axis}`}>{AXIS_LABELS_IT[axis as AxisKey]}</Label>
+                  <span className="text-sm font-semibold">{editedRatings[axis] || 3}</span>
+                </div>
+                <Slider
+                  id={`rating-${axis}`}
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={[editedRatings[axis] || 3]}
+                  onValueChange={(value) => setEditedRatings({ ...editedRatings, [axis]: value[0] })}
+                  data-testid={`slider-edit-${axis}`}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingPlayer(null)}
+              data-testid="button-cancel-edit"
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => editingPlayer && updateRatingsMutation.mutate({ 
+                playerId: editingPlayer.id, 
+                ratings: editedRatings 
+              })}
+              disabled={updateRatingsMutation.isPending}
+              data-testid="button-save-ratings"
+            >
+              {updateRatingsMutation.isPending ? 'Salvataggio...' : 'Salva Modifiche'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
