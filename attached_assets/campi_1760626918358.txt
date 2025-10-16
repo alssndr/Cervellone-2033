@@ -1,0 +1,1147 @@
+from pathlib import Path
+
+full = r"""PROMPT ONE-SHOT PER REPLIT AI — PROGETTO “SQUADRE BILANCIATE” (v4.3 COMPLETO, FILE UNICO)
+
+ISTRUZIONI PER REPLIT AI
+- IGNORA qualsiasi prompt/file precedente.
+- Usa SOLO questo file per creare/aggiornare tutti i file ai percorsi indicati.
+- Crea esattamente i file e i contenuti riportati qui sotto.
+- Dopo la generazione, esegui i comandi finali indicati in fondo.
+
+----------------------------------------------------------------
+0) DIPENDENZE E SCRIPT
+Percorso: package.json (sovrascrivi)
+
+{
+  "name": "squadre-bilanciate",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"next dev -p 3000\" \"ts-node src/server/index.ts\"",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "seed": "ts-node prisma/seed.ts",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "body-parser": "^1.20.2",
+    "chart.js": "^4.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^3.4.10",
+    "cookie-parser": "^1.4.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "postcss": "^8.4.41",
+    "prisma": "^5.19.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  }
+}
+
+----------------------------------------------------------------
+1) PRISMA — SCHEMA COMPLETO (se già presente, mantienilo identico)
+Percorso: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DB_PROVIDER") // "postgresql" consigliato; "sqlite" solo dev
+  url      = env("DATABASE_URL")
+}
+
+enum Role { ADMIN USER }
+enum Sport { THREE FIVE EIGHT ELEVEN }
+enum MatchStatus { OPEN FROZEN CLOSED }
+enum SignupStatus { STARTER RESERVE NEXT }
+enum TeamSide { LIGHT DARK }
+enum Algo { GREEDY_LOCAL RANDOM_SEEDED }
+
+model User {
+  id        String   @id @default(cuid())
+  role      Role
+  phone     String   @unique
+  email     String?  @unique
+  name      String?
+  surname   String?
+  createdAt DateTime @default(now())
+  Player    Player?
+  @@index([role])
+}
+
+model Player {
+  id        String  @id @default(cuid())
+  userId    String? @unique
+  user      User?   @relation(fields: [userId], references: [id])
+  name      String
+  surname   String
+  phone     String
+  notes     String?
+  ratings   PlayerRatings?
+  @@index([phone])
+  @@index([surname, name])
+}
+
+model PlayerRatings {
+  playerId  String  @id
+  player    Player  @relation(fields: [playerId], references: [id])
+  defense   Int
+  attack    Int
+  speed     Int
+  power     Int
+  technique Int
+  shot      Int
+  extra     Json?
+  updatedAt DateTime @default(now())
+}
+
+model Match {
+  id              String       @id @default(cuid())
+  sport           Sport
+  dateTime        DateTime
+  location        String
+  status          MatchStatus  @default(OPEN)
+  inviteTokenHash String
+  createdBy       String
+  teamNameLight   String?
+  teamNameDark    String?
+  createdAt       DateTime     @default(now())
+  Signups         Signup[]
+  Teams           Team []
+  Lineups         LineupVersion[]
+  @@index([status])
+  @@index([dateTime])
+}
+
+model Signup {
+  id        String        @id @default(cuid())
+  matchId   String
+  match     Match         @relation(fields: [matchId], references: [id])
+  playerId  String
+  player    Player        @relation(fields: [playerId], references: [id])
+  phone     String
+  status    SignupStatus
+  reserveTeam TeamSide?
+  createdAt DateTime      @default(now())
+
+  @@unique([matchId, playerId])
+  @@index([matchId, status])
+  @@index([matchId, reserveTeam])
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id])
+  name      TeamSide
+  frozen    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  Assignments TeamAssignment[]
+
+  @@unique([matchId, name])
+}
+
+model TeamAssignment {
+  id        String @id @default(cuid())
+  teamId    String
+  team      Team   @relation(fields: [teamId], references: [id])
+  playerId  String
+  player    Player @relation(fields: [playerId], references: [id])
+  position  String?
+  @@unique([teamId, playerId])
+  @@index([playerId])
+}
+
+model LineupVersion {
+  id           String   @id @default(cuid())
+  matchId      String
+  match        Match    @relation(fields: [matchId], references: [id])
+  ordinal      Int
+  algo         Algo
+  seed         Int?
+  score        Float
+  recommended  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  Assignments  LineupAssignment[]
+
+  @@unique([matchId, ordinal])
+  @@index([matchId, recommended])
+  @@index([matchId, score])
+}
+
+model LineupAssignment {
+  id              String @id @default(cuid())
+  lineupVersionId String
+  lineup          LineupVersion @relation(fields: [lineupVersionId], references: [id])
+  teamSide        TeamSide
+  playerId        String
+  player          Player @relation(fields: [playerId], references: [id])
+  position        String?
+
+  @@index([lineupVersionId])
+  @@index([teamSide])
+  @@index([playerId])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  entity       String
+  entityId     String?
+  payload      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+----------------------------------------------------------------
+2) ENV DI ESEMPIO
+Percorso: .env.example
+
+DB_PROVIDER=postgresql
+DATABASE_URL=postgresql://user:password@localhost:5432/partite?schema=public
+JWT_SECRET=your-super-secret
+INVITE_TOKEN_TTL_HOURS=3
+
+----------------------------------------------------------------
+3) SEED
+Percorso: prisma/seed.ts
+
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
+const NAMES = [
+  'Luca','Marco','Giulia','Sara','Paolo','Francesco','Chiara','Marta','Davide','Alessia',
+  'Stefano','Giorgia','Simone','Alberto','Elisa','Carlo','Anna','Matteo','Ilaria','Gabriele','Enrico','Silvia'
+];
+
+function r(min=1,max=5){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+async function main(){
+  const admin = await prisma.user.upsert({
+    where:{ phone: '+390000000000' },
+    update:{},
+    create:{ phone:'+390000000000', role:'ADMIN', email:'admin@example.com', name:'Admin' }
+  });
+
+  for(let i=0;i<22;i++){
+    const phone = `+39333${String(1000000+i).slice(-7)}`;
+    const user = await prisma.user.create({ data:{ phone, role:'USER', name:NAMES[i%NAMES.length] } });
+    const player = await prisma.player.create({ data:{ userId:user.id, name:user.name ?? 'Player', surname:'Demo', phone } });
+    await prisma.playerRatings.create({ data:{
+      playerId: player.id, defense:r(), attack:r(), speed:r(), power:r(), technique:r(), shot:r()
+    }});
+  }
+
+  async function createMatch(sport:'THREE'|'FIVE'|'EIGHT'|'ELEVEN', hours=24){
+    const dateTime = new Date(Date.now()+hours*3600*1000);
+    const m = await prisma.match.create({
+      data:{ sport, dateTime, location:'Campo Sportivo Demo', inviteTokenHash:'to-be-set-at-runtime', createdBy: admin.id }
+    });
+    await prisma.team.createMany({ data:[ { matchId:m.id, name:'LIGHT' }, { matchId:m.id, name:'DARK' } ] });
+    return m.id;
+  }
+
+  await createMatch('THREE', 12);
+  await createMatch('FIVE', 24);
+  await createMatch('EIGHT', 36);
+  await createMatch('ELEVEN', 48);
+
+  console.log('Seed ok');
+}
+
+main().finally(()=>prisma.$disconnect());
+
+----------------------------------------------------------------
+4) TAILWIND
+Percorso: tailwind.config.js
+
+module.exports = {
+  content: ["./src/**/*.{ts,tsx,js,jsx}"],
+  theme: {
+    extend: {
+      colors: {
+        paper: "#F7F7F5",
+        ink: "#121212",
+        inkMuted: "#1A1A1A",
+        blueTeam: "#0B4DFF",
+        lightTeam: "#FFFFFF"
+      },
+      fontFamily: {
+        sans: ["Inter","system-ui","Helvetica Neue","Arial","sans-serif"]
+      }
+    }
+  },
+  plugins: []
+};
+
+Percorso: src/styles/globals.css
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { background: theme('colors.paper'); color: theme('colors.ink'); }
+*:focus-visible { outline: 2px solid #0B4DFF; outline-offset: 2px; }
+
+----------------------------------------------------------------
+5) NEXT APP LAYOUT & HOME
+Percorso: src/app/layout.tsx
+
+import './styles/globals.css';
+export default function RootLayout({ children }:{ children: React.ReactNode }){
+  return (
+    <html lang="it">
+      <body className="font-sans">{children}</body>
+    </html>
+  );
+}
+
+Percorso: src/app/page.tsx
+
+export default function Home(){
+  return (
+    <main className="p-8 space-y-4">
+      <h1 className="text-2xl font-bold">Squadre bilanciate — MVP</h1>
+      <ul className="list-disc ml-6 text-sm">
+        <li><a className="underline" href="/admin/login">Login admin</a></li>
+        <li><a className="underline" href="/matches/DEMO">Pagina partita (mock tester)</a></li>
+      </ul>
+    </main>
+  );
+}
+
+----------------------------------------------------------------
+6) UTILS COMUNI
+Percorso: src/server/utils.ts
+
+import crypto from 'crypto';
+
+export function normalizeE164(phone: string): string {
+  const p = phone.replace(/[^\d+]/g,'');
+  if(p.startsWith('00')) return '+'+p.slice(2);
+  if(p.startsWith('+')) return p;
+  if(p.startsWith('0')) return '+39'+p.slice(1);
+  return '+39'+p;
+}
+
+export function startersCap(sport: 'THREE'|'FIVE'|'EIGHT'|'ELEVEN'): number {
+  switch(sport){
+    case 'THREE': return 6;
+    case 'FIVE': return 10;
+    case 'EIGHT': return 16;
+    case 'ELEVEN': return 22;
+  }
+}
+
+export function hashForAdvisoryLock(matchId: string): bigint {
+  const h = crypto.createHash('sha256').update(matchId).digest();
+  const hi = h.readBigInt64BE(0);
+  return hi;
+}
+
+export const AXES = ['defense','attack','speed','power','technique','shot'] as const;
+export type AxisKey = typeof AXES[number];
+
+----------------------------------------------------------------
+7) ALGORITMO BILANCIAMENTO
+Percorso: src/server/algo/balance.ts
+
+import { PlayerRatings } from '@prisma/client';
+import { AXES } from '../utils';
+
+export type RatedPlayer = { playerId: string; ratings: PlayerRatings; mean: number; };
+export type TeamAssignmentResult = {
+  light: string[]; dark: string[]; score: number;
+  axisMeans: { light: Record<string, number>; dark: Record<string, number>; }
+};
+
+function playerMean(r: PlayerRatings){
+  return (r.defense+r.attack+r.speed+r.power+r.technique+r.shot)/6;
+}
+
+function scoreTeams(axisA: Record<string, number>, axisB: Record<string, number>, meanA: number, meanB: number){
+  const axisDelta = AXES.reduce((acc,k)=> acc + Math.abs(axisA[k]-axisB[k]), 0);
+  const meanDelta = Math.abs(meanA - meanB);
+  return 0.7*axisDelta + 0.3*meanDelta;
+}
+
+function computeAxisMeans(players: RatedPlayer[]){
+  const sums: Record<string, number> = Object.fromEntries(AXES.map(a=>[a,0]));
+  players.forEach(p=> AXES.forEach(a=> sums[a]+= (p.ratings as any)[a]));
+  const n = Math.max(players.length, 1);
+  const means: Record<string, number> = Object.fromEntries(AXES.map(a=>[a, sums[a]/n]));
+  const teamMean = players.reduce((a,b)=>a+b.mean, 0)/n;
+  return { means, teamMean };
+}
+
+export function balanceGreedyLocal(players: RatedPlayer[], perTeamSize: number, kSwaps=200): TeamAssignmentResult {
+  const sorted = [...players].sort((a,b)=> {
+    const am = playerMean(a.ratings), bm = playerMean(b.ratings);
+    return bm - am;
+  });
+
+  const A: RatedPlayer[] = [];
+  const B: RatedPlayer[] = [];
+
+  for(const p of sorted){
+    const candA = [...A, p];
+    const candB = [...B, p];
+    if(candA.length>perTeamSize) { B.push(p); continue; }
+    if(candB.length>perTeamSize) { A.push(p); continue; }
+
+    const {means:Am, teamMean:AmM} = computeAxisMeans(candA);
+    const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+    const scoreA = scoreTeams(Am,Bm,AmM,BmM);
+
+    const {means:Am2, teamMean:AmM2} = computeAxisMeans(A);
+    const {means:Bm2, teamMean:BmM2} = computeAxisMeans(candB);
+    const scoreB = scoreTeams(Am2,Bm2,AmM2,BmM2);
+
+    if(scoreA <= scoreB) A.push(p); else B.push(p);
+  }
+
+  let improved = true; let iter = 0;
+  while(improved && iter<kSwaps){
+    improved = false; iter++;
+    for(let i=0;i<A.length;i++){
+      for(let j=0;j<B.length;j++){
+        const A2=[...A], B2=[...B];
+        [A2[i], B2[j]] = [B2[j], A2[i]];
+        const {means:Am, teamMean:AmM} = computeAxisMeans(A);
+        const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+        const curr = scoreTeams(Am,Bm,AmM,BmM);
+
+        const {means:Am2, teamMean:AmM2} = computeAxisMeans(A2);
+        const {means:Bm2, teamMean:BmM2} = computeAxisMeans(B2);
+        const next = scoreTeams(Am2,Bm2,AmM2,BmM2);
+
+        if(next + 1e-9 < curr){
+          A.splice(0,A.length,...A2);
+          B.splice(0,B.length,...B2);
+          improved = true;
+        }
+      }
+    }
+  }
+
+  const {means:Am, teamMean:AmM} = computeAxisMeans(A);
+  const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+  const score = scoreTeams(Am,Bm,AmM,BmM);
+
+  return { light: A.map(p=>p.playerId), dark: B.map(p=>p.playerId), score, axisMeans: { light: Am, dark: Bm } };
+}
+
+----------------------------------------------------------------
+8) SERVIZIO RISERVE
+Percorso: src/server/services/reserveAssign.ts
+
+import { PrismaClient, TeamSide } from '@prisma/client';
+const prisma = new PrismaClient();
+
+export async function assignReserveTeamBalanced(matchId: string): Promise<TeamSide> {
+  const [lightCount, darkCount] = await Promise.all([
+    prisma.signup.count({ where:{ matchId, status:'RESERVE', reserveTeam:'LIGHT' }}),
+    prisma.signup.count({ where:{ matchId, status:'RESERVE', reserveTeam:'DARK' }}),
+  ]);
+  if(lightCount < darkCount) return 'LIGHT';
+  if(darkCount < lightCount) return 'DARK';
+  return Math.random() < 0.5 ? 'LIGHT' : 'DARK';
+}
+
+----------------------------------------------------------------
+9) SERVIZIO RICALCOLO TITOLARI
+Percorso: src/server/services/recalcTeams.ts
+
+import { PrismaClient } from '@prisma/client';
+import { balanceGreedyLocal, RatedPlayer } from '../algo/balance';
+import { startersCap } from '../utils';
+
+const prisma = new PrismaClient();
+
+export async function recalcTeamsGreedy(tx: PrismaClient, matchId: string){
+  const match = await tx.match.findUnique({ where:{ id: matchId }});
+  if(!match) throw new Error('MATCH_NOT_FOUND');
+
+  const perTeam = startersCap(match.sport as any) / 2;
+
+  const starters = await tx.signup.findMany({
+    where:{ matchId, status:'STARTER' },
+    include:{ player:{ include:{ ratings:true }}}
+  });
+
+  const rated: RatedPlayer[] = starters.map(s=>{
+    if(!s.player.ratings) throw new Error('PLAYER_WITHOUT_RATINGS');
+    const r = s.player.ratings;
+    const mean = (r.defense+r.attack+r.speed+r.power+r.technique+r.shot)/6;
+    return { playerId: s.playerId, ratings: r, mean };
+  });
+
+  const { light, dark } = balanceGreedyLocal(rated, perTeam);
+
+  const teams = await tx.team.findMany({ where:{ matchId }});
+  const lightTeam = teams.find(t=>t.name==='LIGHT')!;
+  const darkTeam  = teams.find(t=>t.name==='DARK')!;
+
+  await tx.teamAssignment.deleteMany({ where:{ teamId: { in:[lightTeam.id, darkTeam.id] } } });
+
+  await tx.teamAssignment.createMany({
+    data: [
+      ...light.map(pid=>({ teamId: lightTeam.id, playerId: pid })),
+      ...dark.map(pid=>({ teamId: darkTeam.id,  playerId: pid }))
+    ]
+  });
+
+  return { lightTeamId: lightTeam.id, darkTeamId: darkTeam.id };
+}
+
+----------------------------------------------------------------
+10) VIEW PUBBLICA + RADAR
+Percorso: src/server/services/matchView.ts
+
+import { PrismaClient } from '@prisma/client';
+import { AXES } from '../utils';
+const prisma = new PrismaClient();
+
+export async function buildPublicMatchView(matchId:string, phone:string){
+  const match = await prisma.match.findUnique({ where:{ id: matchId } });
+  if(!match) throw new Error('MATCH_NOT_FOUND');
+
+  const [teams, signups, assignments] = await Promise.all([
+    prisma.team.findMany({ where:{ matchId } }),
+    prisma.signup.findMany({ where:{ matchId }, include:{ player:{ include:{ ratings:true }}} }),
+    prisma.teamAssignment.findMany({ where:{ team: { matchId }}, include:{ player:{ include:{ ratings:true }}} })
+  ]);
+
+  const lightTeam = teams.find(t=>t.name==='LIGHT')!;
+  const darkTeam  = teams.find(t=>t.name==='DARK')!;
+
+  const startersIds = new Set(signups.filter(s=>s.status==='STARTER').map(s=>s.playerId));
+
+  const lightStarters = assignments.filter(a=>a.teamId===lightTeam.id && startersIds.has(a.playerId))
+    .map(a=>({ id:a.playerId, name:`${a.player.name} ${a.player.surname}`.trim(), ratings:a.player.ratings }));
+  const darkStarters  = assignments.filter(a=>a.teamId===darkTeam.id && startersIds.has(a.playerId))
+    .map(a=>({ id:a.playerId, name:`${a.player.name} ${a.player.surname}`.trim(), ratings:a.player.ratings }));
+
+  const reservesLight = signups.filter(s=>s.status==='RESERVE' && s.reserveTeam==='LIGHT')
+    .map(s=>({ id:s.playerId, name:`${s.player.name} ${s.player.surname}`.trim() }));
+  const reservesDark  = signups.filter(s=>s.status==='RESERVE' && s.reserveTeam==='DARK')
+    .map(s=>({ id:s.playerId, name:`${s.player.name} ${s.player.surname}`.trim() }));
+
+  function axisMeans(arr: any[]){
+    const sums: Record<string, number> = Object.fromEntries(AXES.map(a=>[a,0]));
+    const n = Math.max(arr.length, 1);
+    for(const p of arr){
+      if(!p.ratings) continue;
+      AXES.forEach(a=> sums[a] += (p.ratings as any)[a]);
+    }
+    return Object.fromEntries(AXES.map(a=> [a, sums[a]/n]));
+  }
+
+  const radar = { light: axisMeans(lightStarters), dark: axisMeans(darkStarters) };
+
+  const me = signups.find(s=>s.player.phone === phone) || null;
+
+  return {
+    match: {
+      id: match.id, sport: match.sport, dateTime: match.dateTime,
+      location: match.location, status: match.status,
+      teamNameLight: match.teamNameLight ?? 'Chiari',
+      teamNameDark:  match.teamNameDark  ?? 'Scuri'
+    },
+    me: me ? { status: me.status } : null,
+    starters: {
+      light: lightStarters.map(p=>({ id:p.id, name:p.name })),
+      dark:  darkStarters.map(p=>({ id:p.id, name:p.name }))
+    },
+    reserves: { light: reservesLight, dark: reservesDark },
+    radar
+  };
+}
+
+----------------------------------------------------------------
+11) ROTTE INVITE (OK dopo COMMIT)
+Percorso: src/server/routes/invite.ts
+
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { normalizeE164, startersCap, hashForAdvisoryLock } from '../utils';
+import { assignReserveTeamBalanced } from '../services/reserveAssign';
+import { buildPublicMatchView } from '../services/matchView';
+import { recalcTeamsGreedy } from '../services/recalcTeams';
+
+const prisma = new PrismaClient();
+export const inviteRouter = Router();
+
+async function authInvite(req:any,res:any,next:any){
+  try{
+    const token = req.params.token;
+    const payload:any = jwt.verify(token, process.env.JWT_SECRET!);
+    req.invite = { matchId: payload.matchId };
+    next();
+  }catch(e){ return res.status(401).json({ ok:false, error:'INVITE_INVALID' }); }
+}
+
+inviteRouter.get('/api/invite/:token', authInvite, async (req,res)=>{
+  const m = await prisma.match.findUnique({ where:{ id: req.invite.matchId } });
+  if(!m || m.status!=='OPEN') return res.status(410).json({ ok:false, error:'MATCH_NOT_OPEN' });
+  const cap = startersCap(m.sport as any);
+  const starters = await prisma.signup.count({ where:{ matchId:m.id, status:'STARTER' } });
+  res.json({ ok:true, match:{ id:m.id, sport:m.sport, dateTime:m.dateTime, location:m.location, status:m.status, startersLeft: Math.max(cap-starters,0) } });
+});
+
+inviteRouter.post('/api/invite/:token/signup', authInvite, async (req,res)=>{
+  const { phone, choice, suggestedRatings } = req.body;
+  const normPhone = normalizeE164(phone);
+  const matchId = req.invite.matchId;
+  const lockKey = hashForAdvisoryLock(matchId);
+  try{
+    await prisma.$transaction(async (tx)=>{
+      if(process.env.DB_PROVIDER==='postgresql'){
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock($1)`, lockKey);
+      }
+      const m = await tx.match.findUnique({ where:{ id: matchId } });
+      if(!m || m.status!=='OPEN') throw new Error('MATCH_NOT_OPEN');
+
+      let player = await tx.player.findFirst({ where:{ phone: normPhone } });
+      if(!player){
+        const user = await tx.user.create({ data:{ phone:normPhone, role:'USER' }});
+        player = await tx.player.create({ data:{ userId:user.id, name:'', surname:'', phone:normPhone }});
+      }
+
+      if(suggestedRatings){
+        await tx.auditLog.create({ data:{
+          actorUserId: player.userId ?? null,
+          action:'RATING_SUGGEST',
+          entity:'Player',
+          entityId: player.id,
+          payload: suggestedRatings
+        }});
+      }
+
+      const cap = startersCap(m.sport as any);
+      const startersCount = await tx.signup.count({ where:{ matchId, status:'STARTER' } });
+
+      let status: 'STARTER'|'RESERVE'|'NEXT' = 'RESERVE';
+      if(choice==='NEXT'){ status='NEXT'; }
+      else if(choice==='STARTER' && startersCount < cap){ status='STARTER'; }
+      else { status='RESERVE'; }
+
+      let reserveTeam: 'LIGHT'|'DARK'|null = null;
+      if(status==='RESERVE'){
+        reserveTeam = await assignReserveTeamBalanced(matchId);
+      }
+
+      await tx.signup.upsert({
+        where:{ matchId_playerId: { matchId, playerId: player.id } },
+        create:{ matchId, playerId: player.id, phone: normPhone, status, reserveTeam },
+        update:{ status, reserveTeam }
+      });
+
+      if(status==='STARTER'){
+        await recalcTeamsGreedy(tx, matchId);
+      }
+    });
+
+    const page = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view: page, defaultTab:'FIELD' });
+
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'SIGNUP_FAILED' });
+  }
+});
+
+inviteRouter.post('/api/matches/:id/change-status', async (req,res)=>{
+  const { phone, newStatus } = req.body;
+  const matchId = req.params.id;
+  const normPhone = normalizeE164(phone);
+  const lockKey = hashForAdvisoryLock(matchId);
+  try{
+    await prisma.$transaction( async (tx)=>{
+      if(process.env.DB_PROVIDER==='postgresql'){
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock($1)`, lockKey);
+      }
+      const m = await tx.match.findUnique({ where:{ id: matchId } });
+      if(!m || m.status!=='OPEN') throw new Error('MATCH_NOT_OPEN');
+
+      const player = await tx.player.findFirst({ where:{ phone: normPhone } });
+      if(!player) throw new Error('PLAYER_NOT_FOUND');
+
+      const cap = startersCap(m.sport as any);
+      const startersCount = await tx.signup.count({ where:{ matchId, status:'STARTER' } });
+
+      let status: 'STARTER'|'RESERVE'|'NEXT' = 'RESERVE';
+      if(newStatus==='NEXT'){ status='NEXT'; }
+      else if(newStatus==='STARTER' && startersCount < cap){ status='STARTER'; }
+      else { status='RESERVE'; }
+
+      let reserveTeam: 'LIGHT'|'DARK'|null = null;
+      if(status==='RESERVE'){
+        reserveTeam = await assignReserveTeamBalanced(matchId);
+      }
+
+      await tx.signup.update({
+        where:{ matchId_playerId: { matchId, playerId: player.id } },
+        data:{ status, reserveTeam }
+      });
+
+      if(status==='STARTER'){
+        await recalcTeamsGreedy(tx, matchId);
+      }
+    });
+
+    const page = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view: page, defaultTab:'FIELD' });
+
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'CHANGE_STATUS_FAILED' });
+  }
+});
+
+export default inviteRouter;
+
+----------------------------------------------------------------
+12) ROTTE ADMIN (login semplice + crea/lista/overview/freeze/rebalance)
+Percorso: src/server/routes/admin.ts
+
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
+import { recalcTeamsGreedy } from '../services/recalcTeams';
+import { startersCap } from '../utils';
+
+const prisma = new PrismaClient();
+export const adminRouter = Router();
+adminRouter.use(cookieParser());
+
+function signAdminJwt(payload:any){ return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn:'12h' }); }
+function requireAdmin(req:any,res:any,next:any){
+  try{
+    const token = req.cookies?.admin || req.headers['x-admin-token'];
+    if(!token) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+    jwt.verify(String(token), process.env.JWT_SECRET!);
+    next();
+  }catch(e){ return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' }); }
+}
+
+// Login demo (email/password fisse per MVP)
+adminRouter.post('/api/admin/login', async (req,res)=>{
+  const { email, password } = req.body;
+  if(email==='admin@example.com' && password==='admin'){
+    const token = signAdminJwt({ role:'ADMIN', email });
+    res.cookie('admin', token, { httpOnly:true, sameSite:'lax', maxAge: 12*3600*1000 });
+    return res.json({ ok:true });
+  }
+  return res.status(401).json({ ok:false, error:'BAD_CREDENTIALS' });
+});
+
+// Crea match + token invito
+adminRouter.post('/api/admin/matches', requireAdmin, async (req,res)=>{
+  const { sport, dateTime, location, teamNameLight, teamNameDark } = req.body;
+  const m = await prisma.match.create({
+    data:{ sport, dateTime:new Date(dateTime), location, status:'OPEN', inviteTokenHash:'to-be-set', createdBy:'admin', teamNameLight, teamNameDark }
+  });
+  await prisma.team.createMany({ data:[ { matchId:m.id, name:'LIGHT' }, { matchId:m.id, name:'DARK' } ] });
+  const token = jwt.sign({ matchId:m.id, exp: Math.floor((Date.now()+ (Number(process.env.INVITE_TOKEN_TTL_HOURS)||3)*3600*1000)/1000) }, process.env.JWT_SECRET!);
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  await prisma.match.update({ where:{ id:m.id }, data:{ inviteTokenHash: hash }});
+  res.json({ ok:true, matchId:m.id, inviteUrl:`/invite/${token}` });
+});
+
+// Lista match
+adminRouter.get('/api/admin/matches', requireAdmin, async (_req,res)=>{
+  const items = await prisma.match.findMany({ orderBy:{ dateTime:'asc' } });
+  res.json({ ok:true, items });
+});
+
+// Overview match (capienza e iscritti)
+adminRouter.get('/api/admin/matches/:id/overview', requireAdmin, async (req,res)=>{
+  const id = req.params.id;
+  const m = await prisma.match.findUnique({ where:{ id } });
+  if(!m) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
+  const [signups, teams] = await Promise.all([
+    prisma.signup.findMany({ where:{ matchId:id }, include:{ player:true } }),
+    prisma.team.findMany({ where:{ matchId:id } })
+  ]);
+  const cap = startersCap(m.sport as any);
+  const starters = signups.filter(s=>s.status==='STARTER').length;
+  res.json({ ok:true, match:m, cap, starters, signups, teams });
+});
+
+// Ribilancia (usa greedy)
+adminRouter.post('/api/admin/matches/:id/rebalance', requireAdmin, async (req,res)=>{
+  const id = req.params.id;
+  await prisma.$transaction(async (tx)=>{ await recalcTeamsGreedy(tx as any, id); });
+  res.json({ ok:true });
+});
+
+// Freeze
+adminRouter.post('/api/admin/matches/:id/freeze', requireAdmin, async (req,res)=>{
+  await prisma.match.update({ where:{ id:req.params.id }, data:{ status:'FROZEN' } });
+  res.json({ ok:true });
+});
+
+export default adminRouter;
+
+----------------------------------------------------------------
+13) ROTTE PUBBLICHE (REALE + MOCK)
+Percorso: src/server/routes/public.ts
+
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { buildPublicMatchView } from '../services/matchView';
+import { normalizeE164 } from '../utils';
+
+const prisma = new PrismaClient();
+export const publicRouter = Router();
+
+publicRouter.get('/api/matches/:id/public', async (req, res)=>{
+  try{
+    const matchId = req.params.id;
+    const phone = (req.query.phone as string) || '';
+    if(!phone) return res.status(400).json({ ok:false, error:'PHONE_REQUIRED' });
+    const normPhone = normalizeE164(phone);
+
+    const match = await prisma.match.findUnique({ where:{ id: matchId } });
+    if(!match) return res.status(404).json({ ok:false, error:'MATCH_NOT_FOUND' });
+
+    const view = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view, defaultTab:'FIELD' });
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'PUBLIC_VIEW_FAILED' });
+  }
+});
+
+publicRouter.get('/api/mock/matches/:id/public', async (req,res)=>{
+  const id = req.params.id;
+  const now = new Date();
+  const view = {
+    match: { id, sport:'FIVE', dateTime: now.toISOString(), location:'Campo Sportivo Demo', status:'OPEN', teamNameLight:'Chiari', teamNameDark:'Scuri' },
+    me: { status:'RESERVE' },
+    starters: {
+      light: [ {id:'p1',name:'Luca Demo'},{id:'p2',name:'Marco Demo'},{id:'p3',name:'Giulia Demo'},{id:'p4',name:'Sara Demo'},{id:'p5',name:'Paolo Demo'} ],
+      dark:  [ {id:'p6',name:'Francesco Demo'},{id:'p7',name:'Chiara Demo'},{id:'p8',name:'Marta Demo'},{id:'p9',name:'Davide Demo'},{id:'p10',name:'Alessia Demo'} ]
+    },
+    reserves: { light:[{id:'r1',name:'Stefano Demo'}], dark:[{id:'r2',name:'Giorgia Demo'}] },
+    radar: {
+      light:{ defense:3.8, attack:3.2, speed:3.6, power:3.4, technique:3.5, shot:3.3 },
+      dark: { defense:3.6, attack:3.5, speed:3.4, power:3.5, technique:3.3, shot:3.6 }
+    }
+  };
+  return res.json({ ok:true, view, defaultTab:'FIELD' });
+});
+
+export default publicRouter;
+
+----------------------------------------------------------------
+14) SERVER EXPRESS (bootstrap)
+Percorso: src/server/index.ts
+
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser';
+import inviteRouter from './routes/invite';
+import adminRouter from './routes/admin';
+import publicRouter from './routes/public';
+
+const app = express();
+app.use(cors({ origin:true, credentials:true }));
+app.use(bodyParser.json());
+app.use(cookieParser());
+
+app.use(inviteRouter);
+app.use(adminRouter);
+app.use(publicRouter);
+
+app.get('/healthz', (_req,res)=> res.json({ok:true}));
+
+const port = process.env.PORT || 3001;
+app.listen(port, ()=> console.log(`API on :${port}`));
+
+----------------------------------------------------------------
+15) COMPONENTI UI
+Percorso: src/components/TeamPanel.tsx
+
+'use client';
+import React from 'react';
+import { Radar } from 'react-chartjs-2';
+import { Chart as ChartJS, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend } from 'chart.js';
+ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
+
+type Props = { teamLabel: string; axisMeans: Record<string, number>; };
+const labels = ['Difesa','Attacco','Velocità','Potenza','Tecnica','Tiro'];
+
+export default function TeamPanel({ teamLabel, axisMeans }: Props){
+  const data = {
+    labels,
+    datasets: [{
+      label: teamLabel,
+      data: [
+        axisMeans.defense ?? 0,
+        axisMeans.attack ?? 0,
+        axisMeans.speed ?? 0,
+        axisMeans.power ?? 0,
+        axisMeans.technique ?? 0,
+        axisMeans.shot ?? 0
+      ]
+    }]
+  };
+  const options = { responsive:true, plugins:{ legend:{ display:false } }, scales:{ r:{ min:0, max:5, ticks:{ stepSize:1 } } } } as any;
+  return (<div className="rounded-2xl border bg-white p-4"><div className="text-sm font-semibold mb-3">{teamLabel}</div><Radar data={data} options={options} /></div>);
+}
+
+Percorso: src/components/FieldView.tsx
+
+'use client';
+import React from 'react';
+type P = {
+  sport: 'THREE'|'FIVE'|'EIGHT'|'ELEVEN';
+  lightStarters: { id:string; name:string }[];
+  darkStarters: { id:string; name:string }[];
+  reservesLight: { id:string; name:string }[];
+  reservesDark: { id:string; name:string }[];
+};
+export default function FieldView(p: P){
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <div className="rounded-2xl p-4 bg-white border">
+        <h3 className="font-semibold mb-2">Chiari</h3>
+        <p className="text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="space-y-1 text-sm">{p.lightStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="space-y-1 text-sm">{p.reservesLight.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+      <div className="rounded-2xl p-4 bg-white border">
+        <h3 className="font-semibold mb-2">Scuri</h3>
+        <p className="text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="space-y-1 text-sm">{p.darkStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="space-y-1 text-sm">{p.reservesDark.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+    </div>
+  );
+}
+
+Percorso: src/components/TextView.tsx
+
+'use client';
+import React from 'react';
+type P = {
+  lightStarters: { id:string; name:string }[];
+  darkStarters: { id:string; name:string }[];
+  reservesLight: { id:string; name:string }[];
+  reservesDark: { id:string; name:string }[];
+};
+export default function TextView(p: P){
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <div>
+        <h3 className="font-semibold">Squadra Chiari</h3>
+        <p className="mt-2 text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="list-disc ml-5">{p.lightStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="list-disc ml-5">{p.reservesLight.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+      <div>
+        <h3 className="font-semibold">Squadra Scuri</h3>
+        <p className="mt-2 text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="list-disc ml-5">{p.darkStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="list-disc ml-5">{p.reservesDark.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+    </div>
+  );
+}
+
+----------------------------------------------------------------
+16) PAGINA PARTITA PUBBLICA (fetch reale o mock) + DOPPIO RADAR
+Percorso: src/app/matches/[id]/page.tsx
+
+'use client';
+import React, { useEffect, useState } from 'react';
+import FieldView from '@/components/FieldView';
+import TextView from '@/components/TextView';
+import TeamPanel from '@/components/TeamPanel';
+
+type ViewData = {
+  match: { id:string; sport:'THREE'|'FIVE'|'EIGHT'|'ELEVEN'; dateTime:string; location:string; status:'OPEN'|'FROZEN'|'CLOSED'; teamNameLight:string; teamNameDark:string };
+  me: { status: 'STARTER'|'RESERVE'|'NEXT' } | null;
+  starters: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  reserves: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  radar: { light: Record<string,number>, dark: Record<string,number> };
+};
+
+export default function MatchPage({ params:{ id } }:{ params:{ id:string } }){
+  const [tab, setTab] = useState<'FIELD'|'TEXT'>('FIELD');
+  const [data, setData] = useState<ViewData|null>(null);
+  const [phone, setPhone] = useState<string>('');
+
+  async function loadReal(){
+    const q = new URLSearchParams(); q.set('phone', phone);
+    const r = await fetch(`/api/matches/${id}/public?`+q.toString());
+    const j = await r.json(); if(j.ok) setData(j.view); else alert(j.error || 'Errore caricamento');
+  }
+  async function loadMock(){
+    const r = await fetch(`/api/mock/matches/${id}/public`);
+    const j = await r.json(); if(j.ok) setData(j.view); else alert(j.error || 'Errore mock');
+  }
+  useEffect(()=>{ const saved = window.localStorage.getItem('demo_phone') || ''; if(saved) setPhone(saved); },[]);
+
+  return (
+    <div className="p-6 space-y-6">
+      {!data && (
+        <div className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="text-sm">Carica la vista partita:</div>
+          <div className="flex items-center gap-2">
+            <input className="border rounded-lg px-3 py-2 text-sm flex-1" placeholder="Telefono (per view reale)…" value={phone} onChange={e=> setPhone(e.target.value)} />
+            <button className="px-3 py-2 rounded-lg bg-blueTeam text-white text-sm" onClick={()=>{ window.localStorage.setItem('demo_phone', phone); loadReal(); }}>Carica reale</button>
+            <button className="px-3 py-2 rounded-lg border text-sm" onClick={loadMock} title="Demo rapida senza DB/flow inviti">Carica mock</button>
+          </div>
+          <p className="text-xs text-inkMuted">Suggerimento: salva il telefono per ricarichi successivi.</p>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <header className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold">{data.match.teamNameLight} vs {data.match.teamNameDark}</h1>
+              <p className="text-sm text-inkMuted">{data.match.location} · {new Date(data.match.dateTime).toLocaleString()}</p>
+            </div>
+            <div className="rounded-xl border bg-white p-2 flex gap-2">
+              <button className={`px-3 py-1 rounded-lg ${tab==='FIELD'?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('FIELD')}>Campo</button>
+              <button className={`px-3 py-1 rounded-lg ${tab==='TEXT' ?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('TEXT')}>Testo</button>
+            </div>
+          </header>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <TeamPanel teamLabel={`${data.match.teamNameLight} — medie`} axisMeans={data.radar.light} />
+            <TeamPanel teamLabel={`${data.match.teamNameDark} — medie`} axisMeans={data.radar.dark} />
+          </div>
+
+          {tab==='FIELD' ? (
+            <FieldView sport={data.match.sport} lightStarters={data.starters.light} darkStarters={data.starters.dark} reservesLight={data.reserves.light} reservesDark={data.reserves.dark} />
+          ) : (
+            <TextView lightStarters={data.starters.light} darkStarters={data.starters.dark} reservesLight={data.reserves.light} reservesDark={data.reserves.dark} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+----------------------------------------------------------------
+17) ADMIN FRONTEND MINIMO
+Percorso: src/app/admin/login/page.tsx
+
+'use client';
+import { useState } from 'react';
+export default function AdminLogin(){
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('admin');
+  const [msg, setMsg] = useState('');
+  async function submit(){
+    const r = await fetch('/api/admin/login', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+    const j = await r.json(); if(j.ok){ location.href='/admin/matches'; } else setMsg(j.error || 'Errore login');
+  }
+  return (
+    <main className="p-8 max-w-sm mx-auto space-y-3">
+      <h1 className="text-xl font-semibold">Login admin</h1>
+      <input className="border rounded px-3 py-2 w-full" value={email} onChange={e=>setEmail(e.target.value)} />
+      <input className="border rounded px-3 py-2 w-full" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+      <button className="px-4 py-2 rounded bg-blueTeam text-white" onClick={submit}>Entra</button>
+      {msg && <p className="text-sm text-red-600">{msg}</p>}
+    </main>
+  );
+}
+
+Percorso: src/app/admin/matches/page.tsx
+
+'use client';
+import { useEffect, useState } from 'react';
+type Match = { id:string; sport:'THREE'|'FIVE'|'EIGHT'|'ELEVEN'; dateTime:string; location:string; status:string; };
+export default function Matches(){
+  const [items, setItems] = useState<Match[]>([]);
+  const [sport, setSport] = useState<'THREE'|'FIVE'|'EIGHT'|'ELEVEN'>('FIVE');
+  const [dateTime, setDateTime] = useState<string>('');
+  const [location, setLocation] = useState<string>('Campo Sportivo');
+
+  async function load(){
+    const r = await fetch('/api/admin/matches');
+    const j = await r.json(); if(j.ok) setItems(j.items); else alert(j.error || 'Errore caricamento');
+  }
+  async function createMatch(){
+    const r = await fetch('/api/admin/matches', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ sport, dateTime, location }) });
+    const j = await r.json(); if(j.ok){ load(); alert('Creato! Link invito: '+j.inviteUrl); } else alert(j.error || 'Errore creazione');
+  }
+  useEffect(()=>{ load(); },[]);
+
+  return (
+    <main className="p-8 space-y-6">
+      <h1 className="text-xl font-semibold">Partite</h1>
+      <div className="rounded border bg-white p-4 flex gap-2 items-end">
+        <div><label className="text-xs">Sport</label><br/>
+          <select className="border rounded px-2 py-2" value={sport} onChange={e=>setSport(e.target.value as any)}>
+            <option value="THREE">3v3</option><option value="FIVE">5v5</option><option value="EIGHT">8v8</option><option value="ELEVEN">11v11</option>
+          </select>
+        </div>
+        <div><label className="text-xs">Data/Ora</label><br/>
+          <input className="border rounded px-2 py-2" type="datetime-local" value={dateTime} onChange={e=>setDateTime(e.target.value)} />
+        </div>
+        <div><label className="text-xs">Luogo</label><br/>
+          <input className="border rounded px-2 py-2" value={location} onChange={e=>setLocation(e.target.value)} />
+        </div>
+        <button className="px-4 py-2 rounded bg-blueTeam text-white" onClick={createMatch}>Crea</button>
+      </div>
+
+      <table className="w-full text-sm">
+        <thead><tr className="text-left"><th>Data</th><th>Sport</th><th>Luogo</th><th>Stato</th><th></th></tr></thead>
+        <tbody>
+          {items.map(m=> (
+            <tr key={m.id} className="border-t">
+              <td>{new Date(m.dateTime).toLocaleString()}</td>
+              <td>{m.sport}</td>
+              <td>{m.location}</td>
+              <td>{m.status}</td>
+              <td><a className="underline" href={`/matches/${m.id}`}>Apri</a></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </main>
+  );
+}
+
+----------------------------------------------------------------
+18) AVVIO & COMANDI FINALI (da eseguire in console)
+1) npm install
+2) cp .env.example .env   # imposta DATABASE_URL e JWT_SECRET
+3) npm run prisma:generate
+4) npm run prisma:migrate
+5) npm run seed
+6) npm run dev
+
+Fine del file.
+"""
+
+path = Path("/mnt/data/replit-one-shot-full.txt")
+path.write_text(full)
+
+path

@@ -1,0 +1,879 @@
+0) Dipendenze (aggiungi se mancano)
+	•	backend: express cors body-parser jsonwebtoken prisma @prisma/client
+	•	dev: typescript ts-node concurrently
+	•	charts (frontend): react-chartjs-2 chart.js
+	•	frontend: next react react-dom tailwindcss postcss autoprefixer
+Aggiorna package.json:
+
+{
+  "scripts": {
+    "dev": "concurrently \"next dev -p 3000\" \"ts-node src/server/index.ts\"",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "seed": "ts-node prisma/seed.ts",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "body-parser": "^1.20.2",
+    "chart.js": "^4.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^3.4.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "concurrently": "^8.2.2",
+    "postcss": "^8.4.41",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2",
+    "autoprefixer": "^10.4.19"
+  }
+}
+
+1) Prisma 
+Se non l’hai già fatto, usa lo schema completo che ti ho dato prima (indici inclusi). Confermalo in prisma/schema.prisma. Poi:
+
+npm run prisma:generate
+npm run prisma:migrate
+npm run seed
+
+2) Tailwind 
+	•	tailwind.config.js e src/styles/globals.css come forniti prima.
+Assicurati che _app.tsx importi globals.css.
+
+
+3) Utilità comuni
+Crea/aggiorna src/server/utils.ts:
+
+import crypto from 'crypto';
+
+export function normalizeE164(phone: string): string {
+  const p = phone.replace(/[^\d+]/g,'');
+  if(p.startsWith('00')) return '+'+p.slice(2);
+  if(p.startsWith('+')) return p;
+  if(p.startsWith('0')) return '+39'+p.slice(1);
+  return '+39'+p;
+}
+
+export function startersCap(sport: 'THREE'|'FIVE'|'EIGHT'|'ELEVEN'): number {
+  switch(sport){
+    case 'THREE': return 6;
+    case 'FIVE': return 10;
+    case 'EIGHT': return 16;
+    case 'ELEVEN': return 22;
+  }
+}
+
+export function hashForAdvisoryLock(matchId: string): bigint {
+  const h = crypto.createHash('sha256').update(matchId).digest();
+  const hi = h.readBigInt64BE(0);
+  return hi;
+}
+
+export const AXES = ['defense','attack','speed','power','technique','shot'] as const;
+export type AxisKey = typeof AXES[number];
+
+
+4) Algoritmo bilanciamento
+Crea/aggiorna src/server/algo/balance.ts:
+import { PlayerRatings } from '@prisma/client';
+import { AXES } from '../utils';
+
+export type RatedPlayer = {
+  playerId: string;
+  ratings: PlayerRatings;
+  mean: number;
+};
+
+export type TeamAssignmentResult = {
+  light: string[]; // titolari
+  dark: string[];
+  score: number;
+  axisMeans: {
+    light: Record<string, number>;
+    dark: Record<string, number>;
+  }
+};
+
+function playerMean(r: PlayerRatings){
+  return (r.defense+r.attack+r.speed+r.power+r.technique+r.shot)/6;
+}
+
+function scoreTeams(axisA: Record<string, number>, axisB: Record<string, number>, meanA: number, meanB: number){
+  const axisDelta = AXES.reduce((acc,k)=> acc + Math.abs(axisA[k]-axisB[k]), 0);
+  const meanDelta = Math.abs(meanA - meanB);
+  return 0.7*axisDelta + 0.3*meanDelta;
+}
+
+function computeAxisMeans(players: RatedPlayer[]){
+  const sums: Record<string, number> = Object.fromEntries(AXES.map(a=>[a,0]));
+  players.forEach(p=>{
+    AXES.forEach(a=> sums[a]+= (p.ratings as any)[a]);
+  });
+  const n = Math.max(players.length, 1);
+  const means: Record<string, number> = Object.fromEntries(AXES.map(a=>[a, sums[a]/n]));
+  const teamMean = players.reduce((a,b)=>a+b.mean, 0)/n;
+  return { means, teamMean };
+}
+
+/** Greedy + local-search */
+export function balanceGreedyLocal(players: RatedPlayer[], perTeamSize: number, kSwaps=200): TeamAssignmentResult {
+  const sorted = [...players].sort((a,b)=> {
+    const am = playerMean(a.ratings), bm = playerMean(b.ratings);
+    return bm - am;
+  });
+
+  const A: RatedPlayer[] = [];
+  const B: RatedPlayer[] = [];
+
+  for(const p of sorted){
+    const candA = [...A, p];
+    const candB = [...B, p];
+    if(candA.length>perTeamSize) { B.push(p); continue; }
+    if(candB.length>perTeamSize) { A.push(p); continue; }
+
+    const {means:Am, teamMean:AmM} = computeAxisMeans(candA);
+    const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+    const scoreA = scoreTeams(Am,Bm,AmM,BmM);
+
+    const {means:Am2, teamMean:AmM2} = computeAxisMeans(A);
+    const {means:Bm2, teamMean:BmM2} = computeAxisMeans(candB);
+    const scoreB = scoreTeams(Am2,Bm2,AmM2,BmM2);
+
+    if(scoreA <= scoreB) A.push(p); else B.push(p);
+  }
+
+  let improved = true; let iter = 0;
+  while(improved && iter<kSwaps){
+    improved = false; iter++;
+    for(let i=0;i<A.length;i++){
+      for(let j=0;j<B.length;j++){
+        const A2=[...A], B2=[...B];
+        [A2[i], B2[j]] = [B2[j], A2[i]];
+        const {means:Am, teamMean:AmM} = computeAxisMeans(A);
+        const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+        const curr = scoreTeams(Am,Bm,AmM,BmM);
+
+        const {means:Am2, teamMean:AmM2} = computeAxisMeans(A2);
+        const {means:Bm2, teamMean:BmM2} = computeAxisMeans(B2);
+        const next = scoreTeams(Am2,Bm2,AmM2,BmM2);
+
+        if(next + 1e-9 < curr){
+          A.splice(0,A.length,...A2);
+          B.splice(0,B.length,...B2);
+          improved = true;
+        }
+      }
+    }
+  }
+
+  const {means:Am, teamMean:AmM} = computeAxisMeans(A);
+  const {means:Bm, teamMean:BmM} = computeAxisMeans(B);
+  const score = scoreTeams(Am,Bm,AmM,BmM);
+
+  return {
+    light: A.map(p=>p.playerId),
+    dark:  B.map(p=>p.playerId),
+    score,
+    axisMeans: { light: Am, dark: Bm }
+  };
+}
+
+5) Distribuzione riserve
+Crea/aggiorna src/server/services/reserveAssign.ts:
+
+
+import { PrismaClient, TeamSide } from '@prisma/client';
+const prisma = new PrismaClient();
+
+export async function assignReserveTeamBalanced(matchId: string): Promise<TeamSide> {
+  const [lightCount, darkCount] = await Promise.all([
+    prisma.signup.count({ where:{ matchId, status:'RESERVE', reserveTeam:'LIGHT' }}),
+    prisma.signup.count({ where:{ matchId, status:'RESERVE', reserveTeam:'DARK' }}),
+  ]);
+  if(lightCount < darkCount) return 'LIGHT';
+  if(darkCount < lightCount) return 'DARK';
+  return Math.random() < 0.5 ? 'LIGHT' : 'DARK';
+}
+
+6) Servizio di ricalcolo corrente (applica ai TeamAssignment)
+Crea src/server/services/recalcTeams.ts:
+
+
+
+import { PrismaClient } from '@prisma/client';
+import { balanceGreedyLocal, RatedPlayer } from '../algo/balance';
+import { startersCap } from '../utils';
+
+const prisma = new PrismaClient();
+
+/** Ricalcola assegnazioni TITOLARI (TeamAssignment) sulla base degli STARTER correnti. */
+export async function recalcTeamsGreedy(tx: PrismaClient, matchId: string){
+  const match = await tx.match.findUnique({ where:{ id: matchId }});
+  if(!match) throw new Error('MATCH_NOT_FOUND');
+
+  const cap = startersCap(match.sport as any) / 2;
+
+  const starters = await tx.signup.findMany({
+    where:{ matchId, status:'STARTER' },
+    include:{ player:{ include:{ ratings:true }}}
+  });
+
+  const rated: RatedPlayer[] = starters.map(s=>{
+    if(!s.player.ratings) throw new Error('PLAYER_WITHOUT_RATINGS');
+    return { playerId: s.playerId, ratings: s.player.ratings, mean: 0 };
+  }).map(p=> ({...p, mean:(p.ratings.defense+p.ratings.attack+p.ratings.speed+p.ratings.power+p.ratings.technique+p.ratings.shot)/6}));
+
+  const { light, dark } = balanceGreedyLocal(rated, cap);
+
+  const teams = await tx.team.findMany({ where:{ matchId }});
+  const lightTeam = teams.find(t=>t.name==='LIGHT')!;
+  const darkTeam  = teams.find(t=>t.name==='DARK')!;
+
+  await tx.teamAssignment.deleteMany({ where:{ teamId: { in:[lightTeam.id, darkTeam.id] } } });
+
+  await tx.teamAssignment.createMany({
+    data: [
+      ...light.map(pid=>({ teamId: lightTeam.id, playerId: pid })),
+      ...dark.map(pid=>({ teamId: darkTeam.id,  playerId: pid }))
+    ]
+  });
+
+  return { lightTeamId: lightTeam.id, darkTeamId: darkTeam.id };
+}
+
+7) View pubblica partita (costruisce i dati per le due viste + radar)
+Crea/aggiorna src/server/services/matchView.ts:
+
+import { PrismaClient } from '@prisma/client';
+import { AXES } from '../utils';
+const prisma = new PrismaClient();
+
+export async function buildPublicMatchView(matchId:string, phone:string){
+  const match = await prisma.match.findUnique({ where:{ id: matchId } });
+  if(!match) throw new Error('MATCH_NOT_FOUND');
+
+  const [teams, signups, assignments] = await Promise.all([
+    prisma.team.findMany({ where:{ matchId } }),
+    prisma.signup.findMany({ where:{ matchId }, include:{ player:{ include:{ ratings:true }}} }),
+    prisma.teamAssignment.findMany({ where:{ team: { matchId }}, include:{ player:{ include:{ ratings:true }}} })
+  ]);
+
+  const lightTeam = teams.find(t=>t.name==='LIGHT')!;
+  const darkTeam  = teams.find(t=>t.name==='DARK')!;
+
+  const startersIds = new Set(signups.filter(s=>s.status==='STARTER').map(s=>s.playerId));
+
+  const lightStarters = assignments.filter(a=>a.teamId===lightTeam.id && startersIds.has(a.playerId))
+    .map(a=>({ id:a.playerId, name:`${a.player.name} ${a.player.surname}`.trim(), ratings:a.player.ratings }));
+  const darkStarters  = assignments.filter(a=>a.teamId===darkTeam.id && startersIds.has(a.playerId))
+    .map(a=>({ id:a.playerId, name:`${a.player.name} ${a.player.surname}`.trim(), ratings:a.player.ratings }));
+
+  const reservesLight = signups.filter(s=>s.status==='RESERVE' && s.reserveTeam==='LIGHT')
+    .map(s=>({ id:s.playerId, name:`${s.player.name} ${s.player.surname}`.trim() }));
+  const reservesDark  = signups.filter(s=>s.status==='RESERVE' && s.reserveTeam==='DARK')
+    .map(s=>({ id:s.playerId, name:`${s.player.name} ${s.player.surname}`.trim() }));
+
+  function axisMeans(arr: any[]){
+    const sums: Record<string, number> = Object.fromEntries(AXES.map(a=>[a,0]));
+    const n = Math.max(arr.length, 1);
+    for(const p of arr){
+      if(!p.ratings) continue;
+      AXES.forEach(a=> sums[a] += (p.ratings as any)[a]);
+    }
+    return Object.fromEntries(AXES.map(a=> [a, sums[a]/n]));
+  }
+
+  const radar = {
+    light: axisMeans(lightStarters),
+    dark:  axisMeans(darkStarters),
+  };
+
+  // telefono usato solo per riconoscere il proprio signup (non esporlo ad altri)
+  const me = signups.find(s=>s.player.phone === phone) || null;
+
+  return {
+    match: {
+      id: match.id,
+      sport: match.sport,
+      dateTime: match.dateTime,
+      location: match.location,
+      status: match.status,
+      teamNameLight: match.teamNameLight ?? 'Chiari',
+      teamNameDark:  match.teamNameDark  ?? 'Scuri'
+    },
+    me: me ? { status: me.status } : null,
+    starters: {
+      light: lightStarters.map(p=>({ id:p.id, name:p.name })),
+      dark:  darkStarters.map(p=>({ id:p.id, name:p.name })),
+    },
+    reserves: {
+      light: reservesLight,
+      dark:  reservesDark
+    },
+    radar
+  };
+}
+8) Rotte invite (OK post-COMMIT, rientro su pagina partita)
+Crea/aggiorna src/server/routes/invite.ts:
+
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { normalizeE164, startersCap, hashForAdvisoryLock } from '../utils';
+import { assignReserveTeamBalanced } from '../services/reserveAssign';
+import { buildPublicMatchView } from '../services/matchView';
+import { recalcTeamsGreedy } from '../services/recalcTeams';
+
+const prisma = new PrismaClient();
+export const inviteRouter = Router();
+
+async function authInvite(req:any,res:any,next:any){
+  try{
+    const token = req.params.token;
+    const payload:any = jwt.verify(token, process.env.JWT_SECRET!);
+    req.invite = { matchId: payload.matchId };
+    next();
+  }catch(e){ return res.status(401).json({ ok:false, error:'INVITE_INVALID' }); }
+}
+
+inviteRouter.get('/api/invite/:token', authInvite, async (req,res)=>{
+  const m = await prisma.match.findUnique({ where:{ id: req.invite.matchId } });
+  if(!m || m.status!=='OPEN') return res.status(410).json({ ok:false, error:'MATCH_NOT_OPEN' });
+  const cap = startersCap(m.sport as any);
+  const starters = await prisma.signup.count({ where:{ matchId:m.id, status:'STARTER' } });
+  res.json({ ok:true, match:{ id:m.id, sport:m.sport, dateTime:m.dateTime, location:m.location, status:m.status, startersLeft: Math.max(cap-starters,0) } });
+});
+
+inviteRouter.post('/api/invite/:token/signup', authInvite, async (req,res)=>{
+  const { phone, choice, suggestedRatings } = req.body;
+  const normPhone = normalizeE164(phone);
+  const matchId = req.invite.matchId;
+  const lockKey = hashForAdvisoryLock(matchId);
+  try{
+    await prisma.$transaction(async (tx)=>{
+      if(process.env.DB_PROVIDER==='postgresql'){
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock($1)`, lockKey);
+      }
+      const m = await tx.match.findUnique({ where:{ id: matchId } });
+      if(!m || m.status!=='OPEN') throw new Error('MATCH_NOT_OPEN');
+
+      let player = await tx.player.findFirst({ where:{ phone: normPhone } });
+      if(!player){
+        const user = await tx.user.create({ data:{ phone:normPhone, role:'USER' }});
+        player = await tx.player.create({ data:{ userId:user.id, name:'', surname:'', phone:normPhone }});
+      }
+
+      if(suggestedRatings){
+        await tx.auditLog.create({ data:{
+          actorUserId: player.userId ?? null,
+          action:'RATING_SUGGEST',
+          entity:'Player',
+          entityId: player.id,
+          payload: suggestedRatings
+        }});
+      }
+
+      const cap = startersCap(m.sport as any);
+      const startersCount = await tx.signup.count({ where:{ matchId, status:'STARTER' } });
+
+      let status: 'STARTER'|'RESERVE'|'NEXT' = 'RESERVE';
+      if(choice==='NEXT'){ status='NEXT'; }
+      else if(choice==='STARTER' && startersCount < cap){ status='STARTER'; }
+      else { status='RESERVE'; }
+
+      let reserveTeam: 'LIGHT'|'DARK'|null = null;
+      if(status==='RESERVE'){
+        reserveTeam = await assignReserveTeamBalanced(matchId);
+      }
+
+      await tx.signup.upsert({
+        where:{ matchId_playerId: { matchId, playerId: player.id } },
+        create:{ matchId, playerId: player.id, phone: normPhone, status, reserveTeam },
+        update:{ status, reserveTeam }
+      });
+
+      if(status==='STARTER'){
+        await recalcTeamsGreedy(tx, matchId);
+      }
+    });
+
+    const page = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view: page, defaultTab:'FIELD' });
+
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'SIGNUP_FAILED' });
+  }
+});
+
+inviteRouter.post('/api/matches/:id/change-status', async (req,res)=>{
+  const { phone, newStatus } = req.body;
+  const matchId = req.params.id;
+  const normPhone = normalizeE164(phone);
+  const lockKey = hashForAdvisoryLock(matchId);
+  try{
+    await prisma.$transaction( async (tx)=>{
+      if(process.env.DB_PROVIDER==='postgresql'){
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock($1)`, lockKey);
+      }
+      const m = await tx.match.findUnique({ where:{ id: matchId } });
+      if(!m || m.status!=='OPEN') throw new Error('MATCH_NOT_OPEN');
+
+      const player = await tx.player.findFirst({ where:{ phone: normPhone } });
+      if(!player) throw new Error('PLAYER_NOT_FOUND');
+
+      const cap = startersCap(m.sport as any);
+      const startersCount = await tx.signup.count({ where:{ matchId, status:'STARTER' } });
+
+      let status: 'STARTER'|'RESERVE'|'NEXT' = 'RESERVE';
+      if(newStatus==='NEXT'){ status='NEXT'; }
+      else if(newStatus==='STARTER' && startersCount < cap){ status='STARTER'; }
+      else { status='RESERVE'; }
+
+      let reserveTeam: 'LIGHT'|'DARK'|null = null;
+      if(status==='RESERVE'){
+        reserveTeam = await assignReserveTeamBalanced(matchId);
+      }
+
+      await tx.signup.update({
+        where:{ matchId_playerId: { matchId, playerId: player.id } },
+        data:{ status, reserveTeam }
+      });
+
+      if(status==='STARTER'){
+        await recalcTeamsGreedy(tx, matchId);
+      }
+    });
+
+    const page = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view: page, defaultTab:'FIELD' });
+
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'CHANGE_STATUS_FAILED' });
+  }
+});
+
+export default inviteRouter;
+9) Router admin (creazione match + token)
+Se non presente, crea/aggiorna src/server/routes/admin.ts (come inviato in precedenza).
+
+
+10) Server Express
+Crea/aggiorna src/server/index.ts (come inviato in precedenza) e assicurati che importi inviteRouter e adminRouter.
+
+
+11) Componenti UI: Field, Text, TeamPanel con Radar
+Crea/aggiorna src/components/TeamPanel.tsx:
+
+import React from 'react';
+import { Radar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
+
+type Props = {
+  teamLabel: string;
+  axisMeans: Record<string, number>; // { defense, attack, speed, power, technique, shot }
+};
+
+const labels = ['Difesa','Attacco','Velocità','Potenza','Tecnica','Tiro'];
+
+export default function TeamPanel({ teamLabel, axisMeans }: Props){
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: teamLabel,
+        data: [
+          axisMeans.defense ?? 0,
+          axisMeans.attack ?? 0,
+          axisMeans.speed ?? 0,
+          axisMeans.power ?? 0,
+          axisMeans.technique ?? 0,
+          axisMeans.shot ?? 0
+        ]
+      }
+    ]
+  };
+  const options = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      r: { min: 0, max: 5, ticks: { stepSize: 1 } }
+    }
+  } as any;
+
+  return (
+    <div className="rounded-2xl border bg-white p-4">
+      <div className="text-sm font-semibold mb-3">{teamLabel}</div>
+      <Radar data={data} options={options} />
+    </div>
+  );
+}
+Crea/aggiorna src/components/FieldView.tsx:
+
+
+
+import React from 'react';
+
+type P = {
+  sport: 'THREE'|'FIVE'|'EIGHT'|'ELEVEN';
+  lightStarters: { id:string; name:string }[];
+  darkStarters: { id:string; name:string }[];
+  reservesLight: { id:string; name:string }[];
+  reservesDark: { id:string; name:string }[];
+};
+
+export default function FieldView(p: P){
+  // Placeholder semplice a colonne (campo verticale minimale)
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <div className="rounded-2xl p-4 bg-white border">
+        <h3 className="font-semibold mb-2">Chiari</h3>
+        <p className="text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="space-y-1 text-sm">
+          {p.lightStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}
+        </ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="space-y-1 text-sm">
+          {p.reservesLight.map(pl=> <li key={pl.id}>{pl.name}</li>)}
+        </ul>
+      </div>
+      <div className="rounded-2xl p-4 bg-white border">
+        <h3 className="font-semibold mb-2">Scuri</h3>
+        <p className="text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="space-y-1 text-sm">
+          {p.darkStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}
+        </ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="space-y-1 text-sm">
+          {p.reservesDark.map(pl=> <li key={pl.id}>{pl.name}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+Crea/aggiorna src/components/TextView.tsx:
+
+
+
+import React from 'react';
+
+type P = {
+  lightStarters: { id:string; name:string }[];
+  darkStarters: { id:string; name:string }[];
+  reservesLight: { id:string; name:string }[];
+  reservesDark: { id:string; name:string }[];
+};
+
+export default function TextView(p: P){
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <div>
+        <h3 className="font-semibold">Squadra Chiari</h3>
+        <p className="mt-2 text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="list-disc ml-5">{p.lightStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="list-disc ml-5">{p.reservesLight.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+      <div>
+        <h3 className="font-semibold">Squadra Scuri</h3>
+        <p className="mt-2 text-xs uppercase text-inkMuted">Titolari</p>
+        <ul className="list-disc ml-5">{p.darkStarters.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+        <p className="mt-4 text-xs uppercase text-inkMuted">Riserve</p>
+        <ul className="list-disc ml-5">{p.reservesDark.map(pl=> <li key={pl.id}>{pl.name}</li>)}</ul>
+      </div>
+    </div>
+  );
+}
+
+12) Pagina pubblica partita con doppio tab + due radar
+Se usi Next App Router, Crea src/app/matches/[id]/page.tsx (se Pages, adatta a /pages/matches/[id].tsx):
+
+'use client';
+import React, { useEffect, useState } from 'react';
+import FieldView from '@/components/FieldView';
+import TextView from '@/components/TextView';
+import TeamPanel from '@/components/TeamPanel';
+
+type ViewData = {
+  match: { id:string; sport:'THREE'|'FIVE'|'EIGHT'|'ELEVEN'; dateTime:string; location:string; status:'OPEN'|'FROZEN'|'CLOSED'; teamNameLight:string; teamNameDark:string };
+  me: { status: 'STARTER'|'RESERVE'|'NEXT' } | null;
+  starters: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  reserves: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  radar: { light: Record<string,number>, dark: Record<string,number> };
+};
+
+export default function MatchPage({ params:{ id } }:{ params:{ id:string } }){
+  const [tab, setTab] = useState<'FIELD'|'TEXT'>('FIELD');
+  const [data, setData] = useState<ViewData|null>(null);
+
+  // In demo carichiamo da un endpoint mockato o localStorage.
+  // In integrazione reale, questa pagina riceve "view" da /api/... e la imposta.
+  useEffect(()=>{
+    // TODO: fetch reale se necessario
+  },[id]);
+
+  if(!data) return <div className="p-6 text-sm">Caricamento…</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">{data.match.teamNameLight} vs {data.match.teamNameDark}</h1>
+          <p className="text-sm text-inkMuted">{data.match.location} · {new Date(data.match.dateTime).toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl border bg-white p-2 flex gap-2">
+          <button className={`px-3 py-1 rounded-lg ${tab==='FIELD'?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('FIELD')}>Campo</button>
+          <button className={`px-3 py-1 rounded-lg ${tab==='TEXT' ?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('TEXT')}>Testo</button>
+        </div>
+      </header>
+
+      {/* RADAR DOPPIO */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <TeamPanel teamLabel={`${data.match.teamNameLight} — medie`} axisMeans={data.radar.light} />
+        <TeamPanel teamLabel={`${data.match.teamNameDark} — medie`} axisMeans={data.radar.dark} />
+      </div>
+
+      {tab==='FIELD' ? (
+        <FieldView
+          sport={data.match.sport}
+          lightStarters={data.starters.light}
+          darkStarters={data.starters.dark}
+          reservesLight={data.reserves.light}
+          reservesDark={data.reserves.dark}
+        />
+      ) : (
+        <TextView
+          lightStarters={data.starters.light}
+          darkStarters={data.starters.dark}
+          reservesLight={data.reserves.light}
+          reservesDark={data.reserves.dark}
+        />
+      )}
+    </div>
+  );
+}
+Nota: nel flusso reale, /api/invite/:token/signup e /api/matches/:id/change-status rispondono già con { ok:true, view, defaultTab:'FIELD' }. Il client può semplicemente settare lo stato con quel payload.
+13) Admin router (crea partita + token) — se non presente
+src/server/routes/admin.ts (già inviato prima) crea il match e il token.
+
+
+14) Server Express — se non presente
+src/server/index.ts (già inviato), importa inviteRouter e adminRouter.
+
+
+15) Seed — se non presente
+prisma/seed.ts (già inviato) con 22 giocatori.
+
+
+A) Endpoint reale: GET /api/matches/:id/public?phone=...
+Crea/aggiorna src/server/routes/public.ts
+
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { buildPublicMatchView } from '../services/matchView';
+import { normalizeE164 } from '../utils';
+
+const prisma = new PrismaClient();
+export const publicRouter = Router();
+
+/** Ritorna la view pubblica reale della partita per un utente (filtrata sul suo phone). */
+publicRouter.get('/api/matches/:id/public', async (req, res)=>{
+  try{
+    const matchId = req.params.id;
+    const phone = (req.query.phone as string) || '';
+    if(!phone) return res.status(400).json({ ok:false, error:'PHONE_REQUIRED' });
+    const normPhone = normalizeE164(phone);
+
+    const match = await prisma.match.findUnique({ where:{ id: matchId } });
+    if(!match) return res.status(404).json({ ok:false, error:'MATCH_NOT_FOUND' });
+
+    const view = await buildPublicMatchView(matchId, normPhone);
+    return res.json({ ok:true, view, defaultTab:'FIELD' });
+  }catch(e:any){
+    return res.status(400).json({ ok:false, error:e.message || 'PUBLIC_VIEW_FAILED' });
+  }
+});
+
+export default publicRouter;
+
+E importalo nel server:
+// src/server/index.ts
+import publicRouter from './routes/public';
+...
+app.use(publicRouter);
+
+B) Endpoint mock (demo senza DB/flow inviti): GET /api/mock/matches/:id/public
+Aggiungi in src/server/routes/public.ts sotto al precedente:
+
+/** MOCK: restituisce una view sintetica senza leggere il DB (per demo rapida). */
+publicRouter.get('/api/mock/matches/:id/public', async (req,res)=>{
+  const id = req.params.id;
+  const now = new Date();
+  const view = {
+    match: {
+      id, sport: 'FIVE', dateTime: now.toISOString(),
+      location: 'Campo Sportivo Demo', status: 'OPEN',
+      teamNameLight: 'Chiari', teamNameDark: 'Scuri'
+    },
+    me: { status: 'RESERVE' },
+    starters: {
+      light: [
+        { id:'p1', name:'Luca Demo' },
+        { id:'p2', name:'Marco Demo' },
+        { id:'p3', name:'Giulia Demo' },
+        { id:'p4', name:'Sara Demo' },
+        { id:'p5', name:'Paolo Demo' },
+      ],
+      dark: [
+        { id:'p6', name:'Francesco Demo' },
+        { id:'p7', name:'Chiara Demo' },
+        { id:'p8', name:'Marta Demo' },
+        { id:'p9', name:'Davide Demo' },
+        { id:'p10', name:'Alessia Demo' },
+      ]
+    },
+    reserves: {
+      light: [{ id:'r1', name:'Stefano Demo' }],
+      dark:  [{ id:'r2', name:'Giorgia Demo' }]
+    },
+    radar: {
+      light: { defense:3.8, attack:3.2, speed:3.6, power:3.4, technique:3.5, shot:3.3 },
+      dark:  { defense:3.6, attack:3.5, speed:3.4, power:3.5, technique:3.3, shot:3.6 }
+    }
+  };
+  return res.json({ ok:true, view, defaultTab:'FIELD' });
+});
+
+C) Pagina Next: fetch automatico (reale o mock) + doppio radar
+Aggiorna src/app/matches/[id]/page.tsx (App Router). Se usi Pages, porta la stessa logica in /pages/matches/[id].tsx.
+
+'use client';
+import React, { useEffect, useState } from 'react';
+import FieldView from '@/components/FieldView';
+import TextView from '@/components/TextView';
+import TeamPanel from '@/components/TeamPanel';
+
+type ViewData = {
+  match: { id:string; sport:'THREE'|'FIVE'|'EIGHT'|'ELEVEN'; dateTime:string; location:string; status:'OPEN'|'FROZEN'|'CLOSED'; teamNameLight:string; teamNameDark:string };
+  me: { status: 'STARTER'|'RESERVE'|'NEXT' } | null;
+  starters: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  reserves: { light:{id:string;name:string}[]; dark:{id:string;name:string}[] };
+  radar: { light: Record<string,number>, dark: Record<string,number> };
+};
+
+export default function MatchPage({ params:{ id } }:{ params:{ id:string } }){
+  const [tab, setTab] = useState<'FIELD'|'TEXT'>('FIELD');
+  const [data, setData] = useState<ViewData|null>(null);
+  const [phone, setPhone] = useState<string>('');
+
+  async function loadReal(){
+    const q = new URLSearchParams();
+    q.set('phone', phone);
+    const r = await fetch(`/api/matches/${id}/public?`+q.toString());
+    const j = await r.json();
+    if(j.ok) setData(j.view);
+    else alert(j.error || 'Errore caricamento');
+  }
+
+  async function loadMock(){
+    const r = await fetch(`/api/mock/matches/${id}/public`);
+    const j = await r.json();
+    if(j.ok) setData(j.view);
+    else alert(j.error || 'Errore mock');
+  }
+
+  useEffect(()=>{
+    // Prova a recuperare il telefono salvato
+    const saved = window.localStorage.getItem('demo_phone') || '';
+    if(saved) setPhone(saved);
+  },[]);
+
+  return (
+    <div className="p-6 space-y-6">
+      {!data && (
+        <div className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="text-sm">Carica la vista partita:</div>
+          <div className="flex items-center gap-2">
+            <input
+              className="border rounded-lg px-3 py-2 text-sm flex-1"
+              placeholder="Telefono (per view reale)…"
+              value={phone}
+              onChange={e=> setPhone(e.target.value)}
+            />
+            <button
+              className="px-3 py-2 rounded-lg bg-blueTeam text-white text-sm"
+              onClick={()=>{ window.localStorage.setItem('demo_phone', phone); loadReal(); }}
+            >
+              Carica reale
+            </button>
+            <button
+              className="px-3 py-2 rounded-lg border text-sm"
+              onClick={loadMock}
+              title="Demo rapida senza DB/flow inviti"
+            >
+              Carica mock
+            </button>
+          </div>
+          <p className="text-xs text-inkMuted">Suggerimento: salva il telefono per ricarichi successivi.</p>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <header className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold">{data.match.teamNameLight} vs {data.match.teamNameDark}</h1>
+              <p className="text-sm text-inkMuted">{data.match.location} · {new Date(data.match.dateTime).toLocaleString()}</p>
+            </div>
+            <div className="rounded-xl border bg-white p-2 flex gap-2">
+              <button className={`px-3 py-1 rounded-lg ${tab==='FIELD'?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('FIELD')}>Campo</button>
+              <button className={`px-3 py-1 rounded-lg ${tab==='TEXT' ?'bg-blueTeam text-white':'text-ink'}`} onClick={()=>setTab('TEXT')}>Testo</button>
+            </div>
+          </header>
+
+          {/* RADAR DOPPIO, medie sui titolari */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <TeamPanel teamLabel={`${data.match.teamNameLight} — medie`} axisMeans={data.radar.light} />
+            <TeamPanel teamLabel={`${data.match.teamNameDark} — medie`} axisMeans={data.radar.dark} />
+          </div>
+
+          {tab==='FIELD' ? (
+            <FieldView
+              sport={data.match.sport}
+              lightStarters={data.starters.light}
+              darkStarters={data.starters.dark}
+              reservesLight={data.reserves.light}
+              reservesDark={data.reserves.dark}
+            />
+          ) : (
+            <TextView
+              lightStarters={data.starters.light}
+              darkStarters={data.starters.dark}
+              reservesLight={data.reserves.light}
+              reservesDark={data.reserves.dark}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
