@@ -4,7 +4,7 @@
 
 This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
 
-**Status**: ✅ Production Ready - Fully tested and debugged (October 2025)
+**Status**: ✅ Production Ready - Extended with lineup variants and player management (October 2025)
 
 ## User Preferences
 
@@ -53,11 +53,17 @@ Preferred communication style: Simple, everyday language.
 
 **Core Services**:
 
-1. **Team Balancing Algorithm**: Greedy algorithm with local search optimization that balances teams across 6 athletic axes (defense, attack, speed, power, technique, shot). The algorithm minimizes differences between teams using weighted scoring (70% axis balance, 30% mean balance).
+1. **Team Balancing Algorithms**: 
+   - **GREEDY_LOCAL**: Greedy algorithm with local search optimization that balances teams across 6 athletic axes (defense, attack, speed, power, technique, shot). Minimizes differences using weighted scoring (70% axis balance, 30% mean balance).
+   - **RANDOM_SEEDED**: Randomized team assignment with consistent seeding for reproducibility.
 
-2. **Match View Builder**: Constructs public-facing match data including team rosters, starters, reserves, and statistical comparisons.
+2. **Lineup Version System**: Multi-variant lineup generation service that creates multiple team configurations, scores each variant, and marks the best-balanced option as recommended. Supports batch generation (default: 5 variants) with different algorithms.
 
-3. **Storage Abstraction**: Interface-based storage layer allowing for flexible database implementations.
+3. **Match View Builder**: Constructs public-facing match data including team rosters, starters, reserves, and statistical comparisons.
+
+4. **Storage Abstraction**: Interface-based storage layer allowing for flexible database implementations.
+
+5. **Audit System**: Tracks player-suggested ratings from signup for admin review and approval workflow.
 
 ### Data Storage
 
@@ -68,19 +74,24 @@ Preferred communication style: Simple, everyday language.
 **Schema Design**:
 
 - **Users**: Admin and player authentication via phone numbers
-- **Players**: Individual player profiles with contact information
+- **Players**: Individual player profiles with name, surname, contact information
 - **PlayerRatings**: Six-axis skill ratings (defense, attack, speed, power, technique, shot) on 1-5 scale
 - **Matches**: Event details including sport type, datetime, location, status (OPEN/FROZEN/CLOSED)
 - **Signups**: Player registration for matches with status (STARTER/RESERVE/NEXT)
 - **Teams**: Light and Dark team divisions per match
 - **TeamAssignments**: Junction table linking players to teams
+- **LineupVersion**: Multiple lineup variants per match with algorithm type (GREEDY_LOCAL/RANDOM_SEEDED), balance score, and recommendation flag
+- **LineupAssignment**: Player-to-team assignments for each lineup version
+- **AuditLog**: Tracks player-suggested ratings from signup for admin review
 
 **Data Flow**:
 1. Admin creates match → generates invite token
-2. Players access invite URL → submit phone number
-3. System identifies/creates player → records signup
-4. Admin triggers team balance → algorithm assigns players to teams
-5. Public match view displays balanced teams with statistics
+2. Players access invite URL → submit name, surname, phone number, and self-rate 6 athletic attributes
+3. System identifies/creates player → records signup with suggestedRatings in AuditLog
+4. Admin reviews players page → approves or modifies suggested ratings
+5. Admin generates lineup variants → system creates multiple balanced team options with scoring
+6. Admin selects and applies preferred variant → updates match teams
+7. Public match view displays balanced teams with statistics
 
 ### External Dependencies
 
