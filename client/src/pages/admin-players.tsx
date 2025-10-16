@@ -92,7 +92,11 @@ export default function AdminPlayers() {
   const addToMatchMutation = useMutation({
     mutationFn: async ({ playerId, matchId, status }: { playerId: string; matchId: string; status: string }) => {
       const response = await apiRequest('POST', `/api/admin/players/${playerId}/add-to-match`, { matchId, status });
-      return await response.json();
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Errore sconosciuto');
+      }
+      return data;
     },
     onSuccess: () => {
       setAddingToMatch(null);
@@ -101,6 +105,13 @@ export default function AdminPlayers() {
       toast({
         title: 'Giocatore aggiunto',
         description: 'Il giocatore è stato iscritto alla partita',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: error.message,
       });
     },
   });
