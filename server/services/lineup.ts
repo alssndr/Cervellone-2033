@@ -31,16 +31,25 @@ export async function generateLineupVariants(matchId: string): Promise<string[]>
   // DELETE all existing variants (v1/v2/v3/v4)
   await storage.deleteMatchLineupVersions(matchId);
 
-  // Generate 3 GREEDY_LOCAL variants with different seeds
+  // Generate 3 DIFFERENT variants using different strategies
   const variantCandidates: Array<{
     result: TeamAssignmentResult;
     meanDelta: number;
     seed: number;
   }> = [];
 
-  for (let i = 0; i < 3; i++) {
+  // Generate MANY candidates with different strategies
+  for (let i = 0; i < 10; i++) {
     const seed = Date.now() + i * 1000;
-    const result = balanceGreedyLocal(rated, perTeam, seed, 200 + i * 50); // Different seed + kSwaps for variation
+    let result: TeamAssignmentResult;
+    
+    if (i < 5) {
+      // First 5: GREEDY_LOCAL with different seeds
+      result = balanceGreedyLocal(rated, perTeam, seed, 200 + i * 100);
+    } else {
+      // Last 5: RANDOM_SEEDED for more variety
+      result = balanceRandomSeeded(rated, perTeam, seed);
+    }
     
     // Calculate mean delta (difference between team means)
     const lightMean = result.light
@@ -55,16 +64,43 @@ export async function generateLineupVariants(matchId: string): Promise<string[]>
     
     variantCandidates.push({ result, meanDelta, seed });
   }
+  
+  // Remove duplicate configurations (same team assignments)
+  const uniqueCandidates = variantCandidates.filter((candidate, index) => {
+    const lightSet = new Set(candidate.result.light);
+    const darkSet = new Set(candidate.result.dark);
+    
+    return !variantCandidates.slice(0, index).some(other => {
+      const otherLightSet = new Set(other.result.light);
+      const otherDarkSet = new Set(other.result.dark);
+      
+      // Check if same configuration (same players on same teams)
+      const sameLight = candidate.result.light.length === other.result.light.length &&
+                       candidate.result.light.every(id => otherLightSet.has(id));
+      const sameDark = candidate.result.dark.length === other.result.dark.length &&
+                      candidate.result.dark.every(id => otherDarkSet.has(id));
+      
+      return sameLight && sameDark;
+    });
+  });
 
-  // Sort by meanDelta: v1 = smallest (most balanced), v3 = largest
-  variantCandidates.sort((a, b) => a.meanDelta - b.meanDelta);
+  // Sort unique candidates by meanDelta: v1 = smallest (most balanced), v3 = largest
+  uniqueCandidates.sort((a, b) => a.meanDelta - b.meanDelta);
+
+  // Select up to 3 variants (or fewer if not enough unique ones)
+  const selectedVariants = uniqueCandidates.slice(0, 3);
+  
+  // If we have fewer than 3 unique variants, add duplicates from best candidates
+  while (selectedVariants.length < 3 && variantCandidates.length > 0) {
+    selectedVariants.push(variantCandidates[selectedVariants.length]);
+  }
 
   const versionIds: string[] = [];
   const variantTypes: Array<'V1' | 'V2' | 'V3'> = ['V1', 'V2', 'V3'];
 
   // Create variants in order (v1, v2, v3)
-  for (let i = 0; i < 3; i++) {
-    const candidate = variantCandidates[i];
+  for (let i = 0; i < selectedVariants.length && i < 3; i++) {
+    const candidate = selectedVariants[i];
     const variantType = variantTypes[i];
     
     const version = await storage.createLineupVersion({
@@ -98,7 +134,7 @@ export async function generateLineupVariants(matchId: string): Promise<string[]>
     }
   }
 
-  console.log(`[generateLineupVariants] Generated 3 GREEDY variants: v1 (best balance) to v3`);
+  console.log(`[generateLineupVariants] Generated ${selectedVariants.length} unique variants from ${variantCandidates.length} candidates (${uniqueCandidates.length} unique): v1 (best balance) to v${selectedVariants.length}`);
   return versionIds;
 }
 
