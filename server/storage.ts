@@ -37,6 +37,7 @@ export interface IStorage {
 
   // Signups
   getSignup(matchId: string, playerId: string): Promise<Signup | undefined>;
+  getSignupById(id: string): Promise<Signup | undefined>;
   getMatchSignups(matchId: string): Promise<Signup[]>;
   createSignup(signup: InsertSignup): Promise<Signup>;
   updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide): Promise<void>;
@@ -61,6 +62,7 @@ export interface IStorage {
   createLineupVersion(version: InsertLineupVersion): Promise<LineupVersion>;
   updateLineupRecommended(id: string, recommended: boolean): Promise<void>;
   deleteLineupVersion(id: string): Promise<void>;
+  deleteMatchLineupVersions(matchId: string): Promise<void>;
 
   // LineupAssignments
   getLineupAssignments(lineupVersionId: string): Promise<LineupAssignment[]>;
@@ -183,6 +185,10 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getSignupById(id: string): Promise<Signup | undefined> {
+    return this.signups.get(id);
+  }
+
   async getMatchSignups(matchId: string): Promise<Signup[]> {
     return Array.from(this.signups.values()).filter(s => s.matchId === matchId);
   }
@@ -285,6 +291,14 @@ export class MemStorage implements IStorage {
 
   async deleteLineupVersion(id: string): Promise<void> {
     this.lineupVersions.delete(id);
+  }
+
+  async deleteMatchLineupVersions(matchId: string): Promise<void> {
+    const versions = await this.getMatchLineupVersions(matchId);
+    for (const version of versions) {
+      await this.deleteLineupAssignments(version.id);
+      this.lineupVersions.delete(version.id);
+    }
   }
 
   // LineupAssignments

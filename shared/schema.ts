@@ -7,6 +7,7 @@ export const MatchStatus = z.enum(['OPEN', 'FROZEN', 'CLOSED']);
 export const SignupStatus = z.enum(['STARTER', 'RESERVE', 'NEXT']);
 export const TeamSide = z.enum(['LIGHT', 'DARK']);
 export const Algo = z.enum(['GREEDY_LOCAL', 'RANDOM_SEEDED']);
+export const VariantType = z.enum(['V1', 'V2', 'V3', 'V4']);
 
 export type Role = z.infer<typeof Role>;
 export type Sport = z.infer<typeof Sport>;
@@ -14,6 +15,7 @@ export type MatchStatus = z.infer<typeof MatchStatus>;
 export type SignupStatus = z.infer<typeof SignupStatus>;
 export type TeamSide = z.infer<typeof TeamSide>;
 export type Algo = z.infer<typeof Algo>;
+export type VariantType = z.infer<typeof VariantType>;
 
 // User schema
 export const insertUserSchema = z.object({
@@ -137,9 +139,11 @@ export type TeamAssignment = z.infer<typeof teamAssignmentSchema>;
 export const insertLineupVersionSchema = z.object({
   matchId: z.string(),
   ordinal: z.number().int(),
+  variantType: VariantType,
   algo: Algo,
   seed: z.number().int().optional(),
   score: z.number(),
+  meanDelta: z.number(),
   recommended: z.boolean().default(false),
 });
 

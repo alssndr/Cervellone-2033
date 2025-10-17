@@ -43,8 +43,10 @@ interface MatchViewData {
 interface LineupVariant {
   id: string;
   ordinal: number;
+  variantType: 'V1' | 'V2' | 'V3' | 'V4';
   algo: string;
   score: number;
+  meanDelta: number;
   recommended: boolean;
   light: string[];
   dark: string[];
@@ -60,6 +62,9 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState<any | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('STARTER');
+  const [v4LightIds, setV4LightIds] = useState<string[]>([]);
+  const [v4DarkIds, setV4DarkIds] = useState<string[]>([]);
+  const [isV4Dirty, setIsV4Dirty] = useState(false);
 
   // Fetch match data (using public endpoint for now, can be enhanced with admin endpoint)
   const { data: matchData, isLoading } = useQuery<MatchViewData>({
@@ -84,20 +89,17 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   // Generate variants mutation
   const generateVariantsMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/admin/matches/${id}/generate-lineups`, { count: 5 });
+      const response = await apiRequest('POST', `/api/admin/matches/${id}/generate-lineups`, {});
       return await response.json();
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+        await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
         toast({
           title: 'Varianti generate!',
-          description: `${result.count} varianti create`,
+          description: `${result.count} varianti create (v1 applicata)`,
         });
-        // Auto-select first variant
-        if (variantsData?.variants?.[0]) {
-          setSelectedVariant(variantsData.variants[0].id);
-        }
       }
     },
   });
@@ -222,20 +224,89 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     },
   });
 
+  // Save v4 manual variant mutation
+  const saveV4Mutation = useMutation({
+    mutationFn: async ({ lightIds, darkIds }: { lightIds: string[]; darkIds: string[] }) => {
+      const response = await apiRequest('POST', `/api/admin/matches/${id}/save-manual-variant`, { lightIds, darkIds });
+      return await response.json();
+    },
+    onSuccess: async (result) => {
+      if (result.ok) {
+        await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+        toast({
+          title: 'v4 salvata!',
+          description: `Differenza medie: ${result.meanDelta?.toFixed(3)}`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Errore salvataggio v4',
+        description: error.message || 'Riprova',
+      });
+    },
+  });
+
   // Handle variant selection
   const handleVariantClick = (variantId: string, variantIndex: number) => {
-    if (variantId === 'custom') {
-      setSelectedVariant('custom');
-      toast({
-        title: 'Modalità Personalizzata',
-        description: 'Funzionalità drag&drop in arrivo',
-      });
+    if (variantId === 'v4') {
+      // Enter v4 manual mode - load existing v4 or initialize
+      setSelectedVariant('v4');
+      setIsV4Dirty(false);
+      
+      const existingV4 = variantsData?.variants?.find(v => v.variantType === 'V4');
+      
+      if (existingV4) {
+        // Load existing v4 variant
+        setV4LightIds(existingV4.light);
+        setV4DarkIds(existingV4.dark);
+        toast({
+          title: 'v4 Caricata',
+          description: 'Variante manuale esistente caricata',
+        });
+      } else {
+        // Initialize with split of current starters
+        const starterSignups = signupsData?.signups?.filter(s => s.status === 'STARTER') || [];
+        setV4LightIds(starterSignups.slice(0, Math.ceil(starterSignups.length / 2)).map(s => s.playerId));
+        setV4DarkIds(starterSignups.slice(Math.ceil(starterSignups.length / 2)).map(s => s.playerId));
+        toast({
+          title: 'Modalità Manuale v4',
+          description: 'Nuova configurazione - sposta giocatori per bilanciare',
+        });
+      }
       return;
     }
 
     setSelectedVariant(variantId);
     applyVariantMutation.mutate(variantId);
   };
+
+  // Move player to Light team (from Dark)
+  const moveToLight = (playerId: string) => {
+    setV4DarkIds(prev => prev.filter(id => id !== playerId));
+    setV4LightIds(prev => [...prev, playerId]);
+    setIsV4Dirty(true);
+  };
+
+  // Move player to Dark team (from Light)
+  const moveToDark = (playerId: string) => {
+    setV4LightIds(prev => prev.filter(id => id !== playerId));
+    setV4DarkIds(prev => [...prev, playerId]);
+    setIsV4Dirty(true);
+  };
+
+  // Auto-save v4 when teams change (only if dirty)
+  useEffect(() => {
+    if (selectedVariant === 'v4' && isV4Dirty && (v4LightIds.length > 0 || v4DarkIds.length > 0)) {
+      const timeoutId = setTimeout(() => {
+        saveV4Mutation.mutate({ lightIds: v4LightIds, darkIds: v4DarkIds });
+        setIsV4Dirty(false);
+      }, 500); // Debounce 500ms
+      return () => clearTimeout(timeoutId);
+    }
+  }, [v4LightIds, v4DarkIds, selectedVariant, isV4Dirty]);
 
   const calculatePlayerAverage = (ratings: any) => {
     if (!ratings) return 0;
@@ -268,6 +339,71 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       applyVariantMutation.mutate(firstVariant.id);
     }
   }, [variantsData?.variants]);
+
+  // WebSocket for real-time player registration notifications
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/matches`);
+    
+    ws.onopen = () => {
+      console.log('[WebSocket Client] Connected');
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        // Only process events for this match
+        if (message.matchId !== id) return;
+        
+        if (message.type === 'PLAYER_REGISTERED' || message.type === 'VARIANTS_REGENERATED') {
+          console.log('[WebSocket Client] Received event:', message.type);
+          
+          // Show toast with OK button to apply regenerated v1
+          toast({
+            title: 'Nuova registrazione!',
+            description: 'Si è aggiunto un nuovo giocatore. Sto rigenerando le squadre',
+            action: (
+              <Button 
+                size="sm" 
+                data-testid="button-websocket-ok"
+                onClick={async () => {
+                  // Refetch variants
+                  await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+                  await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+                  
+                  // Apply v1 (first variant, most balanced)
+                  const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
+                  const lineupsData = await response.json();
+                  if (lineupsData?.variants && lineupsData.variants.length > 0) {
+                    const v1 = lineupsData.variants[0];
+                    setSelectedVariant(v1.id);
+                    await applyVariantMutation.mutateAsync(v1.id);
+                  }
+                }}
+              >
+                OK
+              </Button>
+            ),
+          });
+        }
+      } catch (err) {
+        console.error('[WebSocket Client] Error parsing message:', err);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('[WebSocket Client] Error:', error);
+    };
+    
+    ws.onclose = () => {
+      console.log('[WebSocket Client] Disconnected');
+    };
+    
+    return () => {
+      ws.close();
+    };
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -330,8 +466,12 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     p => !enrolledPlayerIds.has(p.id)
   ) || [];
 
-  // Enrolled players with signup info
-  const enrolledPlayers = signupsData?.signups || [];
+  // Enrolled players with signup info, sorted by status (STARTER → RESERVE → NEXT)
+  const statusOrder = { 'STARTER': 0, 'RESERVE': 1, 'NEXT': 2 };
+  const enrolledPlayers = (signupsData?.signups || []).sort((a: any, b: any) => {
+    return (statusOrder[a.status as keyof typeof statusOrder] || 999) - 
+           (statusOrder[b.status as keyof typeof statusOrder] || 999);
+  });
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -399,33 +539,33 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
             
             {/* Variant Selectors */}
             <div className="flex items-center gap-2">
-              {topVariants.map((variant, idx) => (
+              {topVariants.map((variant) => (
                 <button
                   key={variant.id}
-                  onClick={() => handleVariantClick(variant.id, idx)}
+                  onClick={() => handleVariantClick(variant.id, variant.ordinal)}
                   disabled={applyVariantMutation.isPending}
                   className={`relative w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
                     selectedVariant === variant.id
                       ? 'bg-blueTeam text-white shadow-lg'
                       : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-blueTeam'
                   } ${applyVariantMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  data-testid={`variant-selector-${idx + 1}`}
+                  data-testid={`variant-selector-${variant.variantType.toLowerCase()}`}
                 >
-                  v{idx + 1}
+                  {variant.variantType.toLowerCase()}
                   {variant.recommended && selectedVariant !== variant.id && (
                     <Check className="w-3 h-3 absolute -top-1 -right-1 text-green-600" />
                   )}
                 </button>
               ))}
               <button
-                onClick={() => handleVariantClick('custom', -1)}
+                onClick={() => handleVariantClick('v4', -1)}
                 disabled={applyVariantMutation.isPending}
                 className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
-                  selectedVariant === 'custom'
+                  selectedVariant === 'v4'
                     ? 'bg-purple-600 text-white shadow-lg'
                     : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-purple-600'
                 } ${applyVariantMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                data-testid="variant-selector-custom"
+                data-testid="variant-selector-v4"
               >
                 v!
               </button>
@@ -439,6 +579,69 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
             reservesLight={reserves.light}
             reservesDark={reserves.dark}
           />
+
+          {/* v4 Manual Mode UI */}
+          {selectedVariant === 'v4' && (
+            <div className="mt-6 bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-purple-900 mb-4">Modalità Manuale v4 - Sposta Giocatori</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Light Team */}
+                <div>
+                  <h4 className="font-medium text-pink-700 mb-3 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-pinkTeam"></div>
+                    Squadra Chiara ({v4LightIds.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {v4LightIds.map(playerId => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === playerId);
+                      return (
+                        <div key={playerId} className="flex items-center gap-2 bg-white p-2 rounded border">
+                          <span className="flex-1 text-sm">{signup?.player?.name} {signup?.player?.surname}</span>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => moveToDark(playerId)}
+                            data-testid={`move-dark-${playerId}`}
+                          >
+                            →
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Dark Team */}
+                <div>
+                  <h4 className="font-medium text-blue-700 mb-3 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blueTeam"></div>
+                    Squadra Scura ({v4DarkIds.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {v4DarkIds.map(playerId => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === playerId);
+                      return (
+                        <div key={playerId} className="flex items-center gap-2 bg-white p-2 rounded border">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => moveToLight(playerId)}
+                            data-testid={`move-light-${playerId}`}
+                          >
+                            ←
+                          </Button>
+                          <span className="flex-1 text-sm">{signup?.player?.name} {signup?.player?.surname}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {saveV4Mutation.isPending && (
+                <p className="mt-4 text-sm text-purple-600">Salvataggio v4...</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Team Rosters - Text View */}

@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
-import { generateLineupVariants, applyLineupVersion, getLineupVariants } from "./services/lineup";
+import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant } from "./services/lineup";
+import { setupWebSocket, broadcastPlayerRegistered, broadcastVariantsRegenerated } from "./services/websocket";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' 
@@ -108,8 +109,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/matches/:id/generate-lineups', adminAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { count = 5 } = req.body;
-      const versionIds = await generateLineupVariants(id, count);
+      const versionIds = await generateLineupVariants(id);
+      
+      // Auto-apply v1 (first variant, most balanced)
+      if (versionIds.length > 0) {
+        await applyLineupVersion(versionIds[0]);
+      }
+      
       res.json({ ok: true, versionIds, count: versionIds.length });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
@@ -133,6 +139,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { lineupVersionId } = req.body;
       await applyLineupVersion(lineupVersionId);
       res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Save manual v4 variant (admin)
+  app.post('/api/admin/matches/:id/save-manual-variant', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { lightIds, darkIds } = req.body;
+      
+      const result = await saveManualVariant(id, lightIds, darkIds);
+      
+      // Auto-apply the created v4 variant
+      await applyLineupVersion(result.id);
+      
+      res.json({ ok: true, variantId: result.id, meanDelta: result.meanDelta });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -255,7 +278,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ ok: false, error: 'Stato non valido' });
       }
 
+      // Get signup to check current status and matchId
+      const currentSignup = await storage.getSignupById(signupId);
+      
+      if (!currentSignup) {
+        return res.status(404).json({ ok: false, error: 'Signup non trovato' });
+      }
+
+      const oldStatus = currentSignup.status;
+      const newStatus = status;
+      
+      // Update status
       await storage.updateSignup(signupId, status as any);
+
+      // Regenerate variants if starter status changed
+      if (oldStatus !== newStatus && (oldStatus === 'STARTER' || newStatus === 'STARTER')) {
+        await regenerateVariantsAndApplyV1(currentSignup.matchId);
+        console.log(`[updateSignupStatus] Regenerated variants for match ${currentSignup.matchId} (status changed: ${oldStatus} → ${newStatus})`);
+      }
+      
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
@@ -450,10 +491,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Balance teams if new starter
+      // Regenerate variants if new starter
       if (status === 'STARTER') {
-        await balanceTeams(match.id);
+        await regenerateVariantsAndApplyV1(match.id);
       }
+
+      // Broadcast player registration
+      broadcastPlayerRegistered(match.id, `${player.name} ${player.surname}`);
 
       res.json({ ok: true, matchId: match.id });
     } catch (error: any) {
@@ -482,68 +526,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to balance teams
-  async function balanceTeams(matchId: string) {
-    const match = await storage.getMatch(matchId);
-    if (!match) return;
-
-    const perTeam = startersCap(match.sport) / 2;
-    const signups = await storage.getMatchSignups(matchId);
-    const starters = signups.filter(s => s.status === 'STARTER');
-
-    const rated: RatedPlayer[] = await Promise.all(
-      starters.map(async s => {
-        const ratings = await storage.getPlayerRatings(s.playerId);
-        if (!ratings) {
-          // Create default ratings if missing
-          await storage.createPlayerRatings({
-            playerId: s.playerId,
-            defense: 3,
-            attack: 3,
-            speed: 3,
-            power: 3,
-            technique: 3,
-            shot: 3,
-          });
-          return {
-            playerId: s.playerId,
-            ratings: {
-              playerId: s.playerId,
-              defense: 3,
-              attack: 3,
-              speed: 3,
-              power: 3,
-              technique: 3,
-              shot: 3,
-              updatedAt: new Date(),
-            },
-            mean: 3,
-          };
-        }
-        const mean = (ratings.defense + ratings.attack + ratings.speed + ratings.power + ratings.technique + ratings.shot) / 6;
-        return { playerId: s.playerId, ratings, mean };
-      })
-    );
-
-    const { light, dark } = balanceGreedyLocal(rated, perTeam);
-
-    const teams = await storage.getMatchTeams(matchId);
-    const lightTeam = teams.find(t => t.name === 'LIGHT')!;
-    const darkTeam = teams.find(t => t.name === 'DARK')!;
-
-    // Delete old assignments
-    await storage.deleteTeamAssignments(lightTeam.id);
-    await storage.deleteTeamAssignments(darkTeam.id);
-
-    // Create new assignments
-    for (const playerId of light) {
-      await storage.createTeamAssignment({ teamId: lightTeam.id, playerId });
-    }
-    for (const playerId of dark) {
-      await storage.createTeamAssignment({ teamId: darkTeam.id, playerId });
+  // Helper function to regenerate variants and apply v1
+  async function regenerateVariantsAndApplyV1(matchId: string) {
+    try {
+      const versionIds = await generateLineupVariants(matchId);
+      
+      // Auto-apply v1 (first variant, most balanced)
+      if (versionIds.length > 0) {
+        await applyLineupVersion(versionIds[0]);
+        console.log(`[regenerateVariantsAndApplyV1] Generated ${versionIds.length} variants and applied v1 for match ${matchId}`);
+        
+        // Broadcast variants regenerated
+        broadcastVariantsRegenerated(matchId);
+      }
+    } catch (error) {
+      console.error(`[regenerateVariantsAndApplyV1] Error:`, error);
     }
   }
 
   const httpServer = createServer(app);
+  setupWebSocket(httpServer);
   return httpServer;
 }

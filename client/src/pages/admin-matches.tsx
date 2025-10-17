@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { Calendar, MapPin, Users, Plus, ExternalLink } from 'lucide-react';
 
 export default function AdminMatches() {
   const { toast } = useToast();
+  const [, setLocation_nav] = useLocation();
   const [sport, setSport] = useState<Sport>('THREE');
   const [dateTime, setDateTime] = useState('');
   const [location, setLocation] = useState('Da definire');
@@ -34,17 +35,16 @@ export default function AdminMatches() {
       return await response.json();
     },
     onSuccess: (result) => {
-      if (result.ok) {
+      if (result.ok && result.matchId) {
         queryClient.invalidateQueries({ queryKey: ['/api/admin/matches'] });
         toast({
           title: 'Partita creata!',
-          description: `Usa il pulsante "Copia Invito" per condividere`,
+          description: `Reindirizzamento alla gestione partita...`,
         });
-        // Reset to defaults
-        const tomorrow = new Date();
-        tomorrow.setHours(tomorrow.getHours() + 24);
-        setDateTime(tomorrow.toISOString().slice(0, 16));
-        setLocation('Da definire');
+        // Auto-redirect to match detail page
+        setTimeout(() => {
+          setLocation_nav(`/admin/matches/${result.matchId}`);
+        }, 500);
       } else {
         toast({
           title: 'Errore',

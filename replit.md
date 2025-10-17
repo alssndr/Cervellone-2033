@@ -4,7 +4,64 @@
 
 This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
 
-**Status**: ✅ Production Ready - Full feature set with variant system, player management, visual team displays, and authenticated lineup refresh (October 16, 2025)
+**Status**: ✅ Production Ready - Cervellone 2.0 complete with typed variants, v4 manual mode, real-time notifications (October 17, 2025)
+
+## Major System Rewrite (October 17, 2025)
+
+**Cervellone 2.0: Complete Variant System Overhaul**
+
+The lineup variant system has been completely rewritten from scratch to meet exact specifications. The new implementation provides predictable, typed variant generation with manual override capabilities.
+
+**Core Changes:**
+
+1. **Typed Variant System (V1/V2/V3/V4)**:
+   - Schema updated with `VariantType` enum ('V1', 'V2', 'V3', 'V4') and `meanDelta` field
+   - Exactly 3 variants generated per match using GREEDY_LOCAL algorithm
+   - v1 = minimum mean delta (most balanced), v3 = maximum among the 3
+   - Variants ordered by `meanDelta` and stored with `ordinal` field
+   - Frontend displays variants using `variantType` property (v1, v2, v3) instead of array index
+
+2. **v4 Manual Mode** (Complete Implementation):
+   - Backend: `saveManualVariant()` service validates starters, calculates meanDelta, persists V4 variant
+   - API route: `POST /api/admin/matches/:id/save-manual-variant` with lightIds/darkIds
+   - Frontend: Purple UI panel with swap buttons (← →) for moving players between teams
+   - Auto-save with 500ms debounce, only saves after deliberate user edits (isV4Dirty flag)
+   - Loads existing V4 on selection, fallback to starter split only if no V4 exists
+   - Persists across reloads, deleted when starters change
+
+3. **WebSocket Real-Time Notifications**:
+   - Server: WebSocket on path `/ws/matches` (avoids Vite HMR conflict)
+   - Broadcasts `PLAYER_REGISTERED` and `VARIANTS_REGENERATED` events
+   - Frontend: WebSocket client in admin-match-detail listens for matchId-specific events
+   - Toast notification: "Si è aggiunto un nuovo giocatore. Sto rigenerando le squadre" with OK button
+   - After OK click: refetches variants and applies v1
+
+4. **UI/UX Improvements**:
+   - Toast notifications repositioned to top-right corner (Toaster component)
+   - Player lists ordered: Titolari → Riserve → Prossimi (status-based sort)
+   - Auto-redirect to `/admin/matches/:id` after match creation
+   - Variant buttons display using `variantType` property (v1, v2, v3, v!) instead of calculated idx+1
+
+5. **Automatic Variant Regeneration**:
+   - Variants regenerate when starters change (status update to STARTER or new player added as STARTER)
+   - All variants (v1/v2/v3/v4) deleted before regeneration via `deleteMatchLineupVersions()`
+   - v1 automatically applied after regeneration (most balanced)
+   - Frontend refetches and updates UI immediately
+
+**Technical Implementation:**
+
+- **Storage Layer**: Enhanced with atomic variant deletion (`deleteMatchLineupVersions`, `deleteLineupVersion`)
+- **Lineup Service**: `generateLineupVariants()` generates ONLY 3 GREEDY_LOCAL variants, ordered by meanDelta
+- **Routes**: `regenerateVariantsAndApplyV1()` helper function triggers regeneration + WebSocket broadcast
+- **Frontend**: v4 state with `isV4Dirty` flag prevents premature auto-save, loads existing V4 correctly
+
+**End-to-End Test Verification** (October 17, 2025):
+- ✅ Login → Create match → Auto-redirect to detail page
+- ✅ Add 2 players as starters → v1/v2/v3 generated and displayed
+- ✅ Click v1, v2, v3 → Variants apply correctly
+- ✅ Click v! → Manual UI appears with swap buttons
+- ✅ Swap player Light → Dark → v4 saved with meanDelta
+- ✅ Reload → v4 persists, configuration intact
 
 ## Recent Bug Fixes (October 16, 2025)
 
