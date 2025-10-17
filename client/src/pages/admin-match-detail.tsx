@@ -111,8 +111,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       return await response.json();
     },
     onSuccess: async () => {
-      // Force immediate refetch to get updated team assignments
-      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+      // Force immediate refetch to get updated team assignments (MUST include phone param!)
+      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
       await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
       toast({
         title: 'Variante applicata!',
@@ -161,9 +161,9 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         setSelectedVariant(recommendedVariant.id);
         await applyVariantMutation.mutateAsync(recommendedVariant.id);
         
-        // Force immediate update of public view with cache invalidation
-        await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
-        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`], type: 'active' });
+        // Force immediate update of public view with cache invalidation (MUST include phone param!)
+        await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`], type: 'active' });
       }
       
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
@@ -211,8 +211,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         setSelectedVariant(recommendedVariant.id);
         await applyVariantMutation.mutateAsync(recommendedVariant.id);
         
-        // Force immediate update of public view
-        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+        // Force immediate update of public view (MUST include phone param!)
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
       }
       
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
@@ -257,7 +257,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   });
 
   // Handle variant selection
-  const handleVariantClick = (variantId: string, variantIndex: number) => {
+  const handleVariantClick = async (variantId: string, variantIndex: number) => {
     if (variantId === 'v4') {
       // Enter v4 manual mode - load existing v4 or initialize
       setSelectedVariant('v4');
@@ -287,7 +287,10 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     }
 
     setSelectedVariant(variantId);
-    applyVariantMutation.mutate(variantId);
+    await applyVariantMutation.mutateAsync(variantId);
+    
+    // FORCE refetch of public match data to update field immediately
+    await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
   };
 
   // Move player to Light team (from Dark)
