@@ -69,10 +69,14 @@ export function balanceRandomSeeded(players: RatedPlayer[], perTeamSize: number,
   };
 }
 
-export function balanceGreedyLocal(players: RatedPlayer[], perTeamSize: number, kSwaps = 200): TeamAssignmentResult {
+export function balanceGreedyLocal(players: RatedPlayer[], perTeamSize: number, seed: number, kSwaps = 200): TeamAssignmentResult {
+  // Use seed to create randomized initial assignment
+  const rng = seededRandom(seed);
+  
+  // Sort by mean + add small random perturbation for variation
   const sorted = [...players].sort((a, b) => {
-    const am = playerMean(a.ratings);
-    const bm = playerMean(b.ratings);
+    const am = playerMean(a.ratings) + (rng() - 0.5) * 0.1; // Small random noise
+    const bm = playerMean(b.ratings) + (rng() - 0.5) * 0.1;
     return bm - am;
   });
 

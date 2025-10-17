@@ -135,6 +135,12 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       setAddingPlayer(null);
       setSelectedStatus('STARTER');
       
+      // Show loading feedback
+      toast({
+        title: '⚙️ Rigenerazione squadre...',
+        description: 'Calcolo varianti in corso',
+      });
+      
       // Reset selected variant before regenerating
       setSelectedVariant(null);
       
@@ -155,15 +161,16 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         setSelectedVariant(recommendedVariant.id);
         await applyVariantMutation.mutateAsync(recommendedVariant.id);
         
-        // Force immediate update of public view
-        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+        // Force immediate update of public view with cache invalidation
+        await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public`] });
+        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`], type: 'active' });
       }
       
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
       
       toast({
-        title: 'Giocatore aggiunto',
-        description: 'Squadre ribilanciate automaticamente',
+        title: '✅ Giocatore aggiunto!',
+        description: 'Squadre ribilanciate',
       });
     },
     onError: (error: Error) => {

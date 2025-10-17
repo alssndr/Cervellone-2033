@@ -40,7 +40,7 @@ export async function generateLineupVariants(matchId: string): Promise<string[]>
 
   for (let i = 0; i < 3; i++) {
     const seed = Date.now() + i * 1000;
-    const result = balanceGreedyLocal(rated, perTeam, 200 + i * 50); // Different kSwaps for variation
+    const result = balanceGreedyLocal(rated, perTeam, seed, 200 + i * 50); // Different seed + kSwaps for variation
     
     // Calculate mean delta (difference between team means)
     const lightMean = result.light
