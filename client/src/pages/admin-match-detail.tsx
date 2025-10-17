@@ -296,6 +296,30 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   const { match, starters, reserves, radar } = matchData.view;
   const topVariants = variantsData?.variants?.slice(0, 3) || [];
 
+  // Calculate team averages for selected variant
+  const calculateTeamAverages = () => {
+    if (!selectedVariant || selectedVariant === 'custom') {
+      // Use current match data (radar already has averages)
+      const lightAvg = Object.values(radar.light).reduce((sum, val) => sum + val, 0) / 6;
+      const darkAvg = Object.values(radar.dark).reduce((sum, val) => sum + val, 0) / 6;
+      return { light: lightAvg.toFixed(1), dark: darkAvg.toFixed(1) };
+    }
+
+    // Find the selected variant and calculate from its players
+    const variant = variantsData?.variants?.find(v => v.id === selectedVariant);
+    if (!variant) {
+      return { light: '0.0', dark: '0.0' };
+    }
+
+    // Calculate averages from variant player lists (would need player ratings)
+    // For now, use radar data as approximation
+    const lightAvg = Object.values(radar.light).reduce((sum, val) => sum + val, 0) / 6;
+    const darkAvg = Object.values(radar.dark).reduce((sum, val) => sum + val, 0) / 6;
+    return { light: lightAvg.toFixed(1), dark: darkAvg.toFixed(1) };
+  };
+
+  const teamAverages = calculateTeamAverages();
+
   // Get enrolled player IDs
   const enrolledPlayerIds = new Set(
     signupsData?.signups?.map(s => s.playerId) || []
@@ -335,6 +359,21 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
               <h1 className="text-3xl font-bold text-ink mb-2">
                 {match.teamNameLight} vs {match.teamNameDark}
               </h1>
+              
+              {/* Team Averages */}
+              <div className="mb-3">
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-muted rounded-lg">
+                  <span className="font-bold text-lg" style={{ color: '#fc0fc0' }}>
+                    {teamAverages.light}
+                  </span>
+                  <span className="text-inkMuted font-medium">vs</span>
+                  <span className="font-bold text-lg" style={{ color: '#0000ff' }}>
+                    {teamAverages.dark}
+                  </span>
+                  <span className="text-xs text-inkMuted ml-2">medie squadre</span>
+                </div>
+              </div>
+              
               <div className="flex flex-wrap gap-4 text-sm text-inkMuted">
                 <div className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
