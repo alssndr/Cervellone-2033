@@ -755,6 +755,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                     {starters.light.map((player) => {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
+                      const isLastStarter = currentStarters === 1;
                       return (
                         <div
                           key={player.id}
@@ -783,8 +784,12 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="STARTER">Titolare</SelectItem>
-                                <SelectItem value="RESERVE">Riserva</SelectItem>
-                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                                <SelectItem value="RESERVE" disabled={isLastStarter}>
+                                  Riserva {isLastStarter && '(Serve 1 titolare)'}
+                                </SelectItem>
+                                <SelectItem value="NEXT" disabled={isLastStarter}>
+                                  Prossimo {isLastStarter && '(Serve 1 titolare)'}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -909,6 +914,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                     {starters.dark.map((player) => {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
+                      const isLastStarter = currentStarters === 1;
                       return (
                         <div
                           key={player.id}
@@ -937,8 +943,12 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="STARTER">Titolare</SelectItem>
-                                <SelectItem value="RESERVE">Riserva</SelectItem>
-                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                                <SelectItem value="RESERVE" disabled={isLastStarter}>
+                                  Riserva {isLastStarter && '(Serve 1 titolare)'}
+                                </SelectItem>
+                                <SelectItem value="NEXT" disabled={isLastStarter}>
+                                  Prossimo {isLastStarter && '(Serve 1 titolare)'}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

@@ -17,6 +17,48 @@ Questi utenti vengono creati automaticamente al seed del database.
 
 ## Recent Updates
 
+### Admin UX Improvements + Team Roster Management (October 20, 2025)
+
+Implemented comprehensive admin interface enhancements and robust team roster management:
+
+1. **Player Management Streamlining**:
+   - Renamed "Approva rating suggeriti" → "Approva" for conciseness
+   - Added "Modifica" button next to "Approva" for editing player data before approval
+   - Admin can now edit name, surname, and all 6 athletic ratings in edit dialog
+
+2. **Two-Column Team Roster View**:
+   - Match detail page reorganized with side-by-side "Chiari" and "Scuri" columns
+   - Each column displays three sections: Titolari, Riserve, Prossima Volta
+   - Every player has status dropdown (Titolare/Riserva/Prossimo) for inline status changes
+   - Visual separation with team colors and borders for clarity
+
+3. **Starter Cap Validation**:
+   - maxStarters calculated from sport type (3v3=3, 5v5=5, 8v8=8, 11v11=11)
+   - "Titolare" option disabled when starter cap reached, displays "Titolare (Completo)"
+   - Frontend prevents illegal promotions while showing current capacity
+   - Last starter protected: cannot change to RESERVE/NEXT if only 1 starter remains
+
+4. **Race Condition Protection**:
+   - Implemented in-memory mutex (`withMatchLock`) for signup status changes
+   - Serializes concurrent status modifications per match to prevent TOCTOU errors
+   - Validates starter cap atomically before allowing STARTER promotion
+   - Prevents removing last starter: returns 400 with error message
+   - Lock released in finally block to prevent deadlocks or memory leaks
+
+5. **ReserveTeam Assignment**:
+   - Admin-added RESERVE/NEXT players now auto-assigned to reserveTeam (LIGHT/DARK)
+   - Balances between teams based on current reserve counts
+   - Ensures all reserves visible in roster columns (previously hidden if undefined)
+
+**Technical Implementation**:
+- Mutex: `Map<matchId, Promise<void>>` with async lock acquisition/release
+- Validation: Pre-check + atomic update within mutex critical section
+- Frontend: `isStartersLimitReached` and `isLastStarter` computed props disable SelectItems
+- Backend: PATCH `/api/admin/signups/:signupId/status` with mutex + dual validation
+- Bug fixes: reserveTeam now assigned on manual player addition (server/routes.ts line 290-303)
+
+**Tested**: End-to-end Playwright tests verify concurrent status changes, cap enforcement, and UI feedback
+
 ### Updated Player Positioning for 3v3 and 5v5 (October 20, 2025)
 
 Aggiornato il posizionamento dei giocatori nel campo visivo per formati calcio a 3 e calciotto:

@@ -284,11 +284,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ ok: false, error: 'Il giocatore è già iscritto a questa partita' });
       }
 
+      // Assign reserve team if status is RESERVE or NEXT (balance between LIGHT and DARK)
+      let reserveTeam: 'LIGHT' | 'DARK' | undefined = undefined;
+      const targetStatus = status || 'STARTER';
+      
+      if (targetStatus === 'RESERVE' || targetStatus === 'NEXT') {
+        const signups = await storage.getMatchSignups(matchId);
+        const lightCount = signups.filter(s => 
+          (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'LIGHT'
+        ).length;
+        const darkCount = signups.filter(s => 
+          (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'DARK'
+        ).length;
+        reserveTeam = lightCount <= darkCount ? 'LIGHT' : 'DARK';
+      }
+
       await storage.createSignup({
         matchId,
         playerId: id,
         phone: player.phone || '',
-        status: status || 'STARTER',
+        status: targetStatus,
+        reserveTeam,
       });
 
       res.json({ ok: true });
@@ -375,19 +391,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const oldStatus = currentSignup.status;
         const newStatus = status;
         
-        // Check if trying to change to STARTER (race condition protection)
+        // Get match and signups for validation
+        const match = await storage.getMatch(currentSignup.matchId);
+        if (!match) {
+          throw new Error('Partita non trovata');
+        }
+        
+        const cap = startersCap(match.sport);
+        const signups = await storage.getMatchSignups(match.id);
+        const currentStarters = signups.filter(s => s.status === 'STARTER').length;
+        
+        // Prevent adding starters beyond cap
         if (newStatus === 'STARTER' && oldStatus !== 'STARTER') {
-          const match = await storage.getMatch(currentSignup.matchId);
-          if (!match) {
-            throw new Error('Partita non trovata');
-          }
-          
-          const cap = startersCap(match.sport);
-          const signups = await storage.getMatchSignups(match.id);
-          const currentStarters = signups.filter(s => s.status === 'STARTER').length;
-          
           if (currentStarters >= cap) {
             throw new Error('Posti titolari esauriti. Non è possibile aggiungere altri titolari.');
+          }
+        }
+        
+        // Prevent removing the last starter (would cause generation failure)
+        if (oldStatus === 'STARTER' && newStatus !== 'STARTER') {
+          if (currentStarters <= 1) {
+            throw new Error('Non è possibile rimuovere l\'ultimo titolare. La partita deve avere almeno 1 titolare.');
           }
         }
         
