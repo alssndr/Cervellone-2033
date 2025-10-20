@@ -8,9 +8,6 @@ export default function Demo() {
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-ink mb-4">Come Funziona</h1>
-          <p className="text-xl text-inkMuted">
-            Il sistema di bilanciamento squadre in 4 semplici passaggi
-          </p>
         </div>
 
         {/* Steps */}
@@ -38,8 +35,7 @@ export default function Demo() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">I giocatori ricevono il link</h3>
                 <p className="text-inkMuted">
-                  Cliccando sul link, i giocatori accedono alla pagina di iscrizione.
-                  Basta inserire il numero di telefono - il sistema riconosce automaticamente il giocatore.
+                  Dopo aver cliccato sul link, i signori giocatori sono invitati a inserire il proprio numero di telefono: quel numero di telefono sarà associato alla propria scheda statistica. Il giocatore può proporre la propria scheda al momento dell'iscrizione; la scheda deve essere validata dal Cervellone in persona.
                 </p>
               </div>
             </div>
@@ -51,24 +47,27 @@ export default function Demo() {
                 3
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">Scelta della disponibilità</h3>
+                <h3 className="text-lg font-semibold mb-2">Giochi?</h3>
                 <p className="text-inkMuted mb-3">
-                  Ogni giocatore sceglie la propria disponibilità:
+                  Ogni giocatore può scegliere tra:
                 </p>
                 <ul className="space-y-2">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm"><strong>Titolare:</strong> viene assegnato a una squadra</span>
+                  <li className="flex items-start gap-2">
+                    <span className="text-sm">•</span>
+                    <span className="text-sm"><strong>Titolare:</strong> vieni schierato automaticamente in campo</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-yellow-600" />
-                    <span className="text-sm"><strong>Riserva:</strong> entra se qualcuno si ritira</span>
+                  <li className="flex items-start gap-2">
+                    <span className="text-sm">•</span>
+                    <span className="text-sm"><strong>Riserva:</strong> ti impegni a sostituire un altro signor giocatore in caso di rinuncia</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm"><strong>Prossima volta:</strong> non può partecipare</span>
+                  <li className="flex items-start gap-2">
+                    <span className="text-sm">•</span>
+                    <span className="text-sm"><strong>Prossima volta:</strong> dritto nella lista prioritaria per la partita successiva</span>
                   </li>
                 </ul>
+                <p className="text-xs text-inkMuted italic mt-3">
+                  * Il funzionamento dello stato "prossima volta" va ancora descritto, progettato e programmato.
+                </p>
               </div>
             </div>
           </div>
@@ -81,19 +80,16 @@ export default function Demo() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">Bilanciamento automatico</h3>
                 <p className="text-inkMuted mb-3">
-                  L'algoritmo greedy + local search divide i giocatori in due squadre bilanciate basandosi su 6 assi:
+                  L'algoritmo greedy Cervello 2.0™ + local search divide i giocatori in due squadre bilanciate basandosi su 6 parametri:
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">⚔️ Difesa</div>
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">🎯 Attacco</div>
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">⚡ Velocità</div>
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">💪 Potenza</div>
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">🎨 Tecnica</div>
-                  <div className="px-3 py-2 bg-blue-50 rounded-lg">⚽ Tiro</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">① Difesa</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">② Attacco</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">③ Velocità</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">④ Tecnica</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">⑤ Stato di forma</div>
+                  <div className="px-3 py-2 bg-blue-50 rounded-lg">⑥ Tiro</div>
                 </div>
-                <p className="text-inkMuted mt-3">
-                  Il risultato? Due squadre perfettamente bilanciate con un radar chart comparativo!
-                </p>
               </div>
             </div>
           </div>
