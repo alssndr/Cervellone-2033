@@ -8,6 +8,29 @@ This application manages and balances sports teams for coaches and players. It e
 
 ## Recent Updates
 
+### Streamlined Invite Flow + Public Status Changes (October 20, 2025)
+
+Implemented fast-track player enrollment and public match interaction:
+
+1. **Phone-First Invite Flow**: `/invite/:token/signup` now collects phone number + status choice upfront
+2. **Smart Enrollment**: 
+   - `POST /api/invite/:token/check-phone` determines player state (enrolled, exists, new)
+   - Already enrolled → redirect to `/matches/:id` with phone stored
+   - Existing player → direct signup without profile form
+   - New player → show full registration form (name, surname, ratings)
+3. **Public Status Changes**: 
+   - `PATCH /api/matches/:id/change-status` allows enrolled players to change own status via phone verification
+   - Security: validates phone ownership through signup lookup
+   - Auto-promotes first RESERVE when STARTER downgrades (excludes current user from candidates)
+4. **Match View Enhancements**: 
+   - `/matches/:id` now displays status dropdown for enrolled users
+   - Refetch uses query predicate to capture all public view variants
+   - localStorage handoff ensures seamless phone persistence across redirects
+
+**Bug Fixes**:
+- Admin v4 swap now correctly invalidates all public view queries (fixed predicate matching)
+- Reserve promotion excludes signup initiating the change (prevents circular logic)
+
 ### User Role-Based Permissions System (October 20, 2025)
 
 Implemented dual authentication with role-based access control:
