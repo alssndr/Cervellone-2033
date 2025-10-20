@@ -243,7 +243,7 @@ export const AXIS_LABELS_IT: Record<AxisKey, string> = {
   defense: 'Difesa',
   attack: 'Attacco',
   speed: 'Velocità',
-  power: 'Potenza',
+  power: 'Stato di forma',
   technique: 'Tecnica',
   shot: 'Tiro',
 };
