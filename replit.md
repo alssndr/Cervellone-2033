@@ -17,6 +17,32 @@ Questi utenti vengono creati automaticamente al seed del database.
 
 ## Recent Updates
 
+### Dynamic Dropdown UX - Hide Unavailable Options (October 20, 2025)
+
+Improved user experience by dynamically hiding unavailable status options instead of showing error messages:
+
+1. **Add Player Dialog**:
+   - When starter cap NOT reached: Shows all 3 options ("Titolare", "Riserva", "Prossimo")
+   - When starter cap reached: Shows ONLY 2 options ("Riserva", "Prossimo") - "Titolare" is hidden
+   - Default value automatically set to "Riserva" when cap is reached (was "Titolare")
+
+2. **Roster Status Dropdowns**:
+   - STARTER players: Always show "Titolare" option (they already occupy a slot)
+   - RESERVE/NEXT players when cap reached: "Titolare" option is hidden
+   - RESERVE/NEXT players when cap available: "Titolare" option is visible
+
+3. **User Benefits**:
+   - No more confusing error messages when trying to select "Titolare"
+   - Clear visual feedback on what actions are possible
+   - Prevents user frustration from selecting unavailable options
+
+**Technical Implementation**:
+- Frontend: Conditional rendering `{!isStartersLimitReached && <SelectItem value="STARTER">...}`
+- useEffect hook: Resets selectedStatus to "RESERVE" when dialog opens and cap is reached
+- File: client/src/pages/admin-match-detail.tsx
+
+**Tested**: E2E Playwright test verifies dropdown options dynamically show/hide based on starter capacity
+
 ### PostgreSQL Migration + Data Persistence (October 20, 2025)
 
 Successfully migrated from in-memory storage to production-ready PostgreSQL database:

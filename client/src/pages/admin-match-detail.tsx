@@ -356,6 +356,21 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     }
   }, [variantsData?.variants]);
 
+  // Reset selectedStatus when opening add player dialog
+  useEffect(() => {
+    if (addingPlayer) {
+      // Calculate if starters limit is reached
+      const currentStarters = signupsData?.signups?.filter(s => s.status === 'STARTER').length || 0;
+      const sport = matchData?.view?.match?.sport || 'THREE';
+      const maxStartersPerTeam = sport === 'THREE' ? 3 : sport === 'FIVE' ? 5 : sport === 'EIGHT' ? 8 : 11;
+      const maxStartersTotal = maxStartersPerTeam * 2;
+      const isLimitReached = currentStarters >= maxStartersTotal;
+      
+      // Set default status: RESERVE if limit reached, otherwise STARTER
+      setSelectedStatus(isLimitReached ? 'RESERVE' : 'STARTER');
+    }
+  }, [addingPlayer, signupsData, matchData]);
+
   // WebSocket for real-time player registration notifications
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -838,9 +853,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="STARTER" disabled={isStartersLimitReached}>
-                                  Titolare {isStartersLimitReached && '(Completo)'}
-                                </SelectItem>
+                                {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
                                 <SelectItem value="RESERVE">Riserva</SelectItem>
                                 <SelectItem value="NEXT">Prossimo</SelectItem>
                               </SelectContent>
@@ -886,9 +899,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="STARTER" disabled={isStartersLimitReached}>
-                                Titolare {isStartersLimitReached && '(Completo)'}
-                              </SelectItem>
+                              {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
                               <SelectItem value="RESERVE">Riserva</SelectItem>
                               <SelectItem value="NEXT">Prossimo</SelectItem>
                             </SelectContent>
@@ -997,9 +1008,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="STARTER" disabled={isStartersLimitReached}>
-                                  Titolare {isStartersLimitReached && '(Completo)'}
-                                </SelectItem>
+                                {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
                                 <SelectItem value="RESERVE">Riserva</SelectItem>
                                 <SelectItem value="NEXT">Prossimo</SelectItem>
                               </SelectContent>
@@ -1045,9 +1054,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="STARTER" disabled={isStartersLimitReached}>
-                                Titolare {isStartersLimitReached && '(Completo)'}
-                              </SelectItem>
+                              {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
                               <SelectItem value="RESERVE">Riserva</SelectItem>
                               <SelectItem value="NEXT">Prossimo</SelectItem>
                             </SelectContent>
@@ -1126,7 +1133,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="STARTER">Titolare</SelectItem>
+                  {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
                   <SelectItem value="RESERVE">Riserva</SelectItem>
                   <SelectItem value="NEXT">Prossimo</SelectItem>
                 </SelectContent>
