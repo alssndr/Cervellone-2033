@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
-import * as schema from '../db/schema';
+import * as schema from '../../shared/schema';
 import { 
   type User, type InsertUser, 
   type Player, type InsertPlayer,
