@@ -1,5 +1,6 @@
 import { Link } from 'wouter';
 import { Users, Calendar, BarChart3 } from 'lucide-react';
+import logoUrl from '@assets/gianni_sereno_blu_1760963450319.png';
 
 export default function Home() {
   return (
@@ -70,9 +71,16 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <div className="mt-20 text-center text-sm text-inkMuted">
-          {/* TODO: Add logo PNG above this line */}
-          <p>Cervello 2.0 is a coffee break project by Studio Dude</p>
+        <div className="mt-20 text-center">
+          <div className="mb-6 flex justify-center">
+            <img 
+              src={logoUrl} 
+              alt="Cervellone 2.0 Logo" 
+              className="w-32 h-32 object-contain"
+              data-testid="img-logo"
+            />
+          </div>
+          <p className="text-sm text-inkMuted">Cervello 2.0 is a coffee break project by Studio Dude</p>
         </div>
       </div>
     </div>
