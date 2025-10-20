@@ -1,0 +1,92 @@
+COPY & INTERFACCIA
+1. Home page
+Sostituisci:
+«Sistema intelligente per la creazione e il bilanciamento automatico di squadre sportive»
+ → «Sofisticato sistema per la gestione del calciotto settimanale»
+«Sistema di gestione partite sportive con bilanciamento intelligente delle squadre»
+ → «Cervello 2.0 is a coffee break project by Studio Dude»
+Sopra questa riga inserisci il logo PNG del progetto (usa il file che l’utente fornisce).
+2. Pagina “Come funziona”
+Elimina il titolo «Il sistema di bilanciamento squadre in 4 semplici passaggi».
+Aggiorna il testo del primo step come segue:
+ Vecchio:
+Cliccando sul link, i giocatori accedono alla pagina di iscrizione. Basta inserire il numero di telefono - il sistema riconosce automaticamente il giocatore.
+ Nuovo:
+ Dopo aver cliccato sul link, i signori giocatori sono invitati a inserire il proprio numero di telefono: quel numero di telefono sarà associato alla propria scheda statistica. Il giocatore può proporre la propria scheda al momento dell’iscrizione; la scheda deve essere validata dal Cervellone in persona.
+Sostituisci completamente il blocco 3 “Scelta della disponibilità” con:
+Giochi?
+Ogni giocatore può scegliere tra:
+• Titolare: vieni schierato automaticamente in campo
+• Riserva: ti impegni a sostituire un altro signor giocatore in caso di rinuncia
+• Prossima volta: dritto nella lista prioritaria per la partita successiva
+* Il funzionamento dello stato “prossima volta” va ancora descritto, progettato e programmato.
+Sostituisci:
+ «L’algoritmo greedy + local search divide i giocatori in due squadre bilanciate basandosi su 6 assi»
+ →
+ «L’algoritmo greedy Cervello 2.0™ + local search divide i giocatori in due squadre bilanciate basandosi su 6 parametri»
+Elimina completamente la riga:
+ «Il risultato? Due squadre perfettamente bilanciate con un radar chart comparativo!»
+Le emoji numeriche vanno sostituite da numeri cerchiati (① Difesa, ② Attacco, ③ Velocità, ④ Tecnica, ⑤ Stato di forma, ⑥ Tiro).
+“Potenza” diventa “Stato di forma” ovunque.
+LOGICA E FUNZIONALITÀ
+3. Permessi e ruoli
+Quando un utente inserisce un numero di telefono:
+Se quel numero non è associato all’account admin, non può creare nuove partite.
+Può solo:
+vedere le partite alle quali è iscritto,
+entrare nella pagina della partita,
+cambiare il proprio stato.
+Se era titolare e si mette Riserva o Prossima volta, libera un posto che potrà essere occupato da un’altra riserva.
+4. Admin bug – swap manuale
+Il pulsante ! permette all’admin di scambiare due giocatori di squadra, ma al momento non aggiorna i dati reali.
+Fix richiesto: lo scambio deve aggiornare:
+la composizione reale delle squadre (TeamAssignment)
+la visualizzazione sul campo
+i radar e le statistiche medie.
+5. Flusso iscrizione da link
+Quando un giocatore riceve il link della partita:
+Vede il riassunto della partita.
+Inserisce solo il numero di telefono e sceglie lo stato (titolare, riserva, prossima volta).
+Se il numero corrisponde a una scheda esistente, viene portato direttamente alla pagina della partita e inserito con lo stato selezionato.
+Se il numero non corrisponde a una scheda esistente, viene portato su una pagina di creazione scheda (nome, cognome, parametri tecnici). Dopo la compilazione, viene portato alla pagina della partita.
+Alla pagina della partita:
+accanto al proprio nome, compare una tendina per cambiare stato.
+Il cambiamento è immediato e aggiorna la composizione delle squadre.
+Se un utente torna sul link della partita:
+Se il suo numero è già associato a quella partita, viene portato direttamente alla pagina della partita, senza reinserire i dati.
+6. Visualizzazione squadra
+Nella pagina della partita, sotto il campo, ci sono due colonne:
+una per Chiari
+una per Scuri.
+Ogni colonna mostra i giocatori con nome, cognome e stato.
+ Le sezioni devono essere visivamente divise in:
+Titolari
+Riserve
+Prossima volta
+Accanto a ogni nome → menu a tendina per cambiare lo stato.
+Se il numero massimo di titolari per la partita è già raggiunto (3vs3, 5vs5, 8vs8, 11vs11):
+i giocatori con stato “Riserva” o “Prossima volta” non devono vedere l’opzione “Titolare”.
+L’opzione “Titolare” torna disponibile solo se un titolare cambia stato in “Riserva” o “Prossima volta”.
+7. Errore iscrizione riserva (fix critico)
+Attualmente, se una partita è appena creata e un giocatore si iscrive come Riserva, compare:
+500: {“ok”:false,“error”:“Serve almeno 1 giocatore titolare per generare le squadre”}
+Fix richiesto:
+ Il sistema deve accettare senza errori l’iscrizione come riserva anche se non ci sono ancora titolari.
+ L’algoritmo di bilanciamento parte solo quando esiste almeno un titolare.
+8. Messaggi e feedback
+Il messaggio di “OK” deve apparire solo dopo che il sistema ha verificato e salvato la richiesta.
+Se due giocatori inviano contemporaneamente la richiesta di diventare titolari:
+uno riceve “OK, sei titolare”
+l’altro riceve “Posto esaurito, sei riserva”.
+Nessun messaggio doppio o prematuro.
+CONSEGNA TECNICA
+Alla fine, controlla che:
+“Campo” sia sempre il tab di default.
+I radar riflettano solo i titolari.
+L’interfaccia resti coerente su mobile.
+Le modifiche non rompano le rotte /api/invite/:token/signup e /api/matches/:id/change-status.
+ADMIN
+Solo per l’utente admin, dopo V! c’è MVP che mette in campo automaticamente le squadre migliori e meglio bilanciate scegliendo tra tutti gli iscritti.
+Nella sezione “gestione giocatori”, dopo aver cliccato su “approva rating suggeriti”, il box del nuovo giocatore sparisce e va nel suo posto assieme agli altri.
+“approva rating suggeriti” diventa “approva”
+Vicino al nuovo “approva” c’è “modifica”: cliccandolo, l’admin accede alla scheda del giocatore, può modificare i dati che ritiene giusto verificare e salva la scheda con le modifiche. A quel punto, dopo essere stata salvata dall’admin, la scheda sparisce dalla sezione “da approvare” e si mischia in modo ordinato alle altre schede.

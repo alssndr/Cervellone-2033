@@ -11,7 +11,7 @@ export default function Home() {
             Cervellone 2.0
           </h1>
           <p className="text-xl text-inkMuted max-w-2xl mx-auto">
-            Sistema intelligente per la creazione e il bilanciamento automatico di squadre sportive
+            Sofisticato sistema per la gestione del calciotto settimanale
           </p>
         </div>
 
@@ -23,7 +23,7 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Gestione Giocatori</h3>
             <p className="text-sm text-inkMuted">
-              Valuta i giocatori su 6 assi: difesa, attacco, velocità, potenza, tecnica e tiro
+              Valuta i giocatori su 6 parametri: difesa, attacco, velocità, stato di forma, tecnica e tiro
             </p>
           </div>
 
@@ -71,7 +71,8 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-20 text-center text-sm text-inkMuted">
-          <p>Sistema di gestione partite sportive con bilanciamento intelligente delle squadre</p>
+          {/* TODO: Add logo PNG above this line */}
+          <p>Cervello 2.0 is a coffee break project by Studio Dude</p>
         </div>
       </div>
     </div>

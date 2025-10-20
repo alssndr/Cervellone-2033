@@ -1,0 +1,35 @@
+COPY & INTERFACCIA
+1. Home page
+Sostituisci:
+«Sistema intelligente per la creazione e il bilanciamento automatico di squadre sportive»
+ → «Sofisticato sistema per la gestione del calciotto settimanale»
+«Sistema di gestione partite sportive con bilanciamento intelligente delle squadre»
+ → «Cervello 2.0 is a coffee break project by Studio Dude»
+Sopra questa riga inserisci il logo PNG del progetto (usa il file che l’utente fornisce).
+
+2. Pagina “Come funziona”
+Elimina il titolo «Il sistema di bilanciamento squadre in 4 semplici passaggi».
+Aggiorna il testo del primo step come segue:
+ Vecchio:
+Cliccando sul link, i giocatori accedono alla pagina di iscrizione. Basta inserire il numero di telefono - il sistema riconosce automaticamente il giocatore.
+ Nuovo:
+ Dopo aver cliccato sul link, i signori giocatori sono invitati a inserire il proprio numero di telefono: quel numero di telefono sarà associato alla propria scheda statistica. Il giocatore può proporre la propria scheda al momento dell’iscrizione; la scheda deve essere validata dal Cervellone in persona.
+Sostituisci completamente il blocco 3 “Scelta della disponibilità” con:
+
+Giochi?
+Ogni giocatore può scegliere tra:
+
+• Titolare: vieni schierato automaticamente in campo
+• Riserva: ti impegni a sostituire un altro signor giocatore in caso di rinuncia
+• Prossima volta: dritto nella lista prioritaria per la partita successiva
+
+* Il funzionamento dello stato “prossima volta” va ancora descritto, progettato e programmato.
+
+Sostituisci:
+ «L’algoritmo greedy + local search divide i giocatori in due squadre bilanciate basandosi su 6 assi»
+ →
+ «L’algoritmo greedy Cervello 2.0™ + local search divide i giocatori in due squadre bilanciate basandosi su 6 parametri»
+Elimina completamente la riga:
+ «Il risultato? Due squadre perfettamente bilanciate con un radar chart comparativo!»
+Le emoji numeriche vanno sostituite da numeri cerchiati (① Difesa, ② Attacco, ③ Velocità, ④ Tecnica, ⑤ Stato di forma, ⑥ Tiro).
+“Potenza” diventa “Stato di forma” ovunque.
