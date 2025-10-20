@@ -13,6 +13,13 @@ interface FieldViewProps {
   reservesDark: Player[];
 }
 
+interface Position {
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+}
+
 export default function FieldView({ 
   sport, 
   lightStarters, 
@@ -28,6 +35,105 @@ export default function FieldView({
       case 'ELEVEN': return '11v11';
     }
   };
+
+  const getPlayerPositions = (sport: Sport, team: 'light' | 'dark', playerCount: number): Position[] => {
+    if (sport === 'THREE') {
+      // 3v3: Formazione triangolare
+      // Portiere in basso, 1 giocatore in alto, 1 giocatore al centro
+      if (team === 'light') {
+        return [
+          { bottom: '15%', left: '8%' },      // Portiere
+          { top: '20%', left: '20%' },         // Attaccante
+          { top: '45%', left: '20%' },         // Centrocampista
+        ];
+      } else {
+        return [
+          { bottom: '15%', right: '8%' },     // Portiere
+          { top: '20%', right: '20%' },        // Attaccante
+          { top: '45%', right: '20%' },        // Centrocampista
+        ];
+      }
+    } else if (sport === 'FIVE') {
+      // 5v5: Formazione 2-2-1
+      // Portiere laterale, 2 difensori, 2 centrocampisti, 1 attaccante
+      if (team === 'light') {
+        return [
+          { bottom: '20%', left: '5%' },       // Portiere
+          { bottom: '35%', left: '18%' },      // Difensore 1
+          { bottom: '35%', left: '28%' },      // Difensore 2
+          { top: '38%', left: '20%' },         // Centrocampista 1
+          { top: '38%', left: '30%' },         // Centrocampista 2
+        ].slice(0, playerCount);
+      } else {
+        return [
+          { bottom: '20%', right: '5%' },      // Portiere
+          { bottom: '35%', right: '18%' },     // Difensore 1
+          { bottom: '35%', right: '28%' },     // Difensore 2
+          { top: '38%', right: '20%' },        // Centrocampista 1
+          { top: '38%', right: '30%' },        // Centrocampista 2
+        ].slice(0, playerCount);
+      }
+    } else if (sport === 'EIGHT') {
+      // 8v8: Formazione 3-3-2
+      if (team === 'light') {
+        return [
+          { bottom: '10%', left: '5%' },       // Portiere
+          { bottom: '25%', left: '15%' },      // Difensore 1
+          { bottom: '25%', left: '25%' },      // Difensore 2
+          { bottom: '25%', left: '35%' },      // Difensore 3
+          { top: '50%', left: '15%' },         // Centrocampista 1
+          { top: '50%', left: '25%' },         // Centrocampista 2
+          { top: '50%', left: '35%' },         // Centrocampista 3
+          { top: '20%', left: '25%' },         // Attaccante 1
+        ].slice(0, playerCount);
+      } else {
+        return [
+          { bottom: '10%', right: '5%' },      // Portiere
+          { bottom: '25%', right: '15%' },     // Difensore 1
+          { bottom: '25%', right: '25%' },     // Difensore 2
+          { bottom: '25%', right: '35%' },     // Difensore 3
+          { top: '50%', right: '15%' },        // Centrocampista 1
+          { top: '50%', right: '25%' },        // Centrocampista 2
+          { top: '50%', right: '35%' },        // Centrocampista 3
+          { top: '20%', right: '25%' },        // Attaccante 1
+        ].slice(0, playerCount);
+      }
+    } else {
+      // 11v11: Formazione 4-4-2
+      if (team === 'light') {
+        return [
+          { bottom: '8%', left: '5%' },        // Portiere
+          { bottom: '20%', left: '12%' },      // Difensore 1
+          { bottom: '20%', left: '22%' },      // Difensore 2
+          { bottom: '20%', left: '32%' },      // Difensore 3
+          { bottom: '20%', left: '42%' },      // Difensore 4
+          { top: '50%', left: '12%' },         // Centrocampista 1
+          { top: '50%', left: '22%' },         // Centrocampista 2
+          { top: '50%', left: '32%' },         // Centrocampista 3
+          { top: '50%', left: '42%' },         // Centrocampista 4
+          { top: '20%', left: '20%' },         // Attaccante 1
+          { top: '20%', left: '35%' },         // Attaccante 2
+        ].slice(0, playerCount);
+      } else {
+        return [
+          { bottom: '8%', right: '5%' },       // Portiere
+          { bottom: '20%', right: '12%' },     // Difensore 1
+          { bottom: '20%', right: '22%' },     // Difensore 2
+          { bottom: '20%', right: '32%' },     // Difensore 3
+          { bottom: '20%', right: '42%' },     // Difensore 4
+          { top: '50%', right: '12%' },        // Centrocampista 1
+          { top: '50%', right: '22%' },        // Centrocampista 2
+          { top: '50%', right: '32%' },        // Centrocampista 3
+          { top: '50%', right: '42%' },        // Centrocampista 4
+          { top: '20%', right: '20%' },        // Attaccante 1
+          { top: '20%', right: '35%' },        // Attaccante 2
+        ].slice(0, playerCount);
+      }
+    }
+  };
+
+  const lightPositions = getPlayerPositions(sport, 'light', lightStarters.length);
+  const darkPositions = getPlayerPositions(sport, 'dark', darkStarters.length);
 
   return (
     <div className="space-y-6">
@@ -56,36 +162,40 @@ export default function FieldView({
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border-2 border-white/30 rounded-full" />
           
           {/* Squadra Chiara (sinistra) */}
-          <div className="absolute top-1/2 left-8 -translate-y-1/2">
-            <div className="space-y-3">
-              {lightStarters.map((player, idx) => (
-                <div
-                  key={player.id}
-                  className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap"
-                  style={{ backgroundColor: 'rgba(252, 15, 192, 0.9)' }}
-                  data-testid={`player-light-${player.id}`}
-                >
-                  {player.name || `Giocatore ${idx + 1}`}
-                </div>
-              ))}
-            </div>
-          </div>
+          {lightStarters.map((player, idx) => {
+            const position = lightPositions[idx] || { top: '50%', left: '8%' };
+            return (
+              <div
+                key={player.id}
+                className="absolute backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap -translate-x-1/2 -translate-y-1/2"
+                style={{ 
+                  backgroundColor: 'rgba(252, 15, 192, 0.9)',
+                  ...position
+                }}
+                data-testid={`player-light-${player.id}`}
+              >
+                {player.name || `Giocatore ${idx + 1}`}
+              </div>
+            );
+          })}
           
           {/* Squadra Scura (destra) */}
-          <div className="absolute top-1/2 right-8 -translate-y-1/2">
-            <div className="space-y-3">
-              {darkStarters.map((player, idx) => (
-                <div
-                  key={player.id}
-                  className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap"
-                  style={{ backgroundColor: 'rgba(0, 0, 255, 0.9)' }}
-                  data-testid={`player-dark-${player.id}`}
-                >
-                  {player.name || `Giocatore ${idx + 1}`}
-                </div>
-              ))}
-            </div>
-          </div>
+          {darkStarters.map((player, idx) => {
+            const position = darkPositions[idx] || { top: '50%', right: '8%' };
+            return (
+              <div
+                key={player.id}
+                className="absolute backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap -translate-x-1/2 -translate-y-1/2"
+                style={{ 
+                  backgroundColor: 'rgba(0, 0, 255, 0.9)',
+                  ...position
+                }}
+                data-testid={`player-dark-${player.id}`}
+              >
+                {player.name || `Giocatore ${idx + 1}`}
+              </div>
+            );
+          })}
         </div>
       </div>
 

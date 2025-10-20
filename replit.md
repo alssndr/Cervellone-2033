@@ -17,6 +17,22 @@ Questi utenti vengono creati automaticamente al seed del database.
 
 ## Recent Updates
 
+### Updated Player Positioning for 3v3 and 5v5 (October 20, 2025)
+
+Aggiornato il posizionamento dei giocatori nel campo visivo per formati calcio a 3 e calciotto:
+
+1. **Calcio a 3 (3v3)**: Formazione triangolare
+   - Portiere: posizione bassa laterale
+   - 1 attaccante: posizione alta centrale
+   - 1 centrocampista: posizione centrale
+2. **Calciotto (5v5)**: Formazione 2-2-1
+   - Portiere: posizione bassa laterale
+   - 2 difensori: posizione bassa centrale
+   - 2 centrocampisti: posizione centrale
+   - (posizioni estendibili per attaccanti se necessario)
+
+Le posizioni utilizzano coordinate assolute personalizzate per ogni formato sportivo nel componente FieldView.tsx.
+
 ### Streamlined Invite Flow + Public Status Changes (October 20, 2025)
 
 Implemented fast-track player enrollment and public match interaction:
