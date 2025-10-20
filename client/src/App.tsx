@@ -9,6 +9,9 @@ import AdminLogin from "@/pages/admin-login";
 import AdminMatches from "@/pages/admin-matches";
 import AdminMatchDetail from "@/pages/admin-match-detail";
 import AdminPlayers from "@/pages/admin-players";
+import UserLogin from "@/pages/user-login";
+import UserMatches from "@/pages/user-matches";
+import UserMatchDetail from "@/pages/user-match-detail";
 import MatchViewPage from "@/pages/match-view";
 import InviteSignup from "@/pages/invite-signup";
 import NotFound from "@/pages/not-found";
@@ -24,6 +27,11 @@ function Router() {
         {(params) => <AdminMatchDetail params={params} />}
       </Route>
       <Route path="/admin/players" component={AdminPlayers} />
+      <Route path="/user/login" component={UserLogin} />
+      <Route path="/user/matches" component={UserMatches} />
+      <Route path="/user/matches/:id">
+        {(params) => <UserMatchDetail params={params} />}
+      </Route>
       <Route path="/matches/:id">
         {(params) => <MatchViewPage params={params} />}
       </Route>
