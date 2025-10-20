@@ -219,54 +219,6 @@ export async function getLineupVariants(matchId: string) {
   return variants.sort((a, b) => a.ordinal - b.ordinal);
 }
 
-export async function promoteTopPlayersToStarters(matchId: string): Promise<{ promotedCount: number }> {
-  const match = await storage.getMatch(matchId);
-  if (!match) throw new Error('Match not found');
-
-  const cap = startersCap(match.sport);
-  
-  // Check if there are already starters
-  const signups = await storage.getMatchSignups(matchId);
-  const currentStarters = signups.filter(s => s.status === 'STARTER');
-  
-  if (currentStarters.length > 0) {
-    throw new Error('MVP disponibile solo senza titolari');
-  }
-  
-  // Get ALL enrolled players (RESERVE, NEXT only, since no STARTER exists)
-  const allPlayers = signups.filter(s => ['RESERVE', 'NEXT'].includes(s.status));
-  
-  if (allPlayers.length === 0) {
-    throw new Error('Nessun giocatore iscritto per generare MVP');
-  }
-  
-  // Build rated players array with mean ratings
-  const rated: Array<{ signupId: string; playerId: string; mean: number }> = await Promise.all(
-    allPlayers.map(async s => {
-      const ratings = await storage.getPlayerRatings(s.playerId);
-      if (!ratings) {
-        throw new Error(`Player ${s.playerId} has no ratings`);
-      }
-      const mean = (ratings.defense + ratings.attack + ratings.speed + ratings.power + ratings.technique + ratings.shot) / 6;
-      return { signupId: s.id, playerId: s.playerId, mean };
-    })
-  );
-  
-  // Sort by mean rating (descending) and select top N
-  rated.sort((a, b) => b.mean - a.mean);
-  const topPlayers = rated.slice(0, Math.min(cap, rated.length));
-  
-  console.log(`[promoteTopPlayersToStarters] Promoting ${topPlayers.length} best players from ${rated.length} enrolled to STARTER`);
-  
-  // Promote top players to STARTER
-  for (const player of topPlayers) {
-    await storage.updateSignup(player.signupId, 'STARTER');
-    console.log(`[promoteTopPlayersToStarters] Promoted player ${player.playerId} to STARTER (mean: ${player.mean.toFixed(2)})`);
-  }
-  
-  return { promotedCount: topPlayers.length };
-}
-
 export async function saveManualVariant(
   matchId: string,
   lightIds: string[],

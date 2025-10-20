@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
-import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant, promoteTopPlayersToStarters } from "./services/lineup";
+import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant } from "./services/lineup";
 import { setupWebSocket, broadcastPlayerRegistered, broadcastVariantsRegenerated } from "./services/websocket";
 import jwt from "jsonwebtoken";
 
@@ -217,28 +217,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await applyLineupVersion(result.id);
       
       res.json({ ok: true, variantId: result.id, meanDelta: result.meanDelta });
-    } catch (error: any) {
-      res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // Promote top players to starters (MVP mode) (admin)
-  app.post('/api/admin/matches/:id/generate-mvp', adminAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Promote top players to STARTER
-      const result = await promoteTopPlayersToStarters(id);
-      
-      // Generate normal variants (v1, v2, v3) with the newly promoted starters
-      const versionIds = await generateLineupVariants(id);
-      
-      // Auto-apply v1 (first variant, most balanced)
-      if (versionIds.length > 0) {
-        await applyLineupVersion(versionIds[0]);
-      }
-      
-      res.json({ ok: true, promotedCount: result.promotedCount, variantsGenerated: versionIds.length });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }

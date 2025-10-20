@@ -17,37 +17,26 @@ Questi utenti vengono creati automaticamente al seed del database.
 
 ## Recent Updates
 
-### MVP Variant System + Starter Cap Fixes (October 20, 2025)
+### Starter Cap Fixes + Reserve Team Assignment (October 20, 2025)
 
-Implemented MVP (Most Valuable Players) variant system and corrected starter capacity calculations:
+Corrected starter capacity calculations and improved reserve team management:
 
-1. **MVP Variant Generation**:
-   - New "MVP" button after v! in variant selector (amber/golden styling)
-   - Selects best N players from ALL enrolled (STARTER, RESERVE, NEXT) based on mean ratings
-   - Calculates average rating across 6 athletic attributes for each player
-   - Sorts by mean rating descending and selects top N (where N = cap for sport)
-   - Balances top players using GREEDY_LOCAL algorithm
-   - Auto-applies MVP variant after generation
-   - Proper error handling: failures show error toast and reset UI state
-
-2. **Starter Cap Correction**:
+1. **Starter Cap Correction**:
    - Fixed maxStarters calculation: now correctly PER TEAM instead of total
    - 3v3: 3 starters per team (6 total), not 3 total
    - 5v5: 5 starters per team (10 total)
    - 8v8: 8 starters per team (16 total)
    - 11v11: 11 starters per team (22 total)
 
-3. **Reserve Team Assignment Fix**:
+2. **Reserve Team Assignment Fix**:
    - When STARTER changes to RESERVE/NEXT, now auto-assigns reserveTeam (LIGHT/DARK)
    - Balances reserves between teams based on current counts
    - Ensures immediate visibility in roster sections
 
 **Technical Implementation**:
-- Backend: `generateMVPVariant()` in server/services/lineup.ts
-- Frontend: `generateMVPMutation` with error handling in admin-match-detail.tsx
-- Schema: Added 'MVP' to VariantType enum
-- Endpoint: POST `/api/admin/matches/:id/generate-mvp`
-- Tested: End-to-end Playwright verification of MVP generation, player selection, and UI updates
+- Frontend: Corrected `maxStartersPerTeam` calculation in admin-match-detail.tsx
+- Backend: Auto-assignment of reserveTeam in server/routes.ts when status changes
+- Tested: Verified capacity enforcement and reserve visibility
 
 ### Admin UX Improvements + Team Roster Management (October 20, 2025)
 
