@@ -240,7 +240,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     onSuccess: async (result) => {
       if (result.ok) {
         await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
-        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public`] });
+        // Refetch ALL public view queries (matches any phone parameter)
+        await queryClient.refetchQueries({ 
+          predicate: (query) => {
+            const key = query.queryKey[0] as string;
+            return key?.startsWith(`/api/matches/${id}/public`);
+          }
+        });
         toast({
           title: 'v4 salvata!',
           description: `Differenza medie: ${result.meanDelta?.toFixed(3)}`,

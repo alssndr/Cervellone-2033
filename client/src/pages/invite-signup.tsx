@@ -14,10 +14,14 @@ interface InviteSignupProps {
   params: { token: string };
 }
 
+type SignupStep = 'phone' | 'profile' | 'completed';
+
 export default function InviteSignup({ params }: InviteSignupProps) {
   const { token } = params;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  const [step, setStep] = useState<SignupStep>('phone');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
@@ -30,10 +34,55 @@ export default function InviteSignup({ params }: InviteSignupProps) {
     technique: 3,
     shot: 3,
   });
-  const [completed, setCompleted] = useState(false);
+  const [playerName, setPlayerName] = useState('');
 
   const { data: inviteData, isLoading } = useQuery<{ ok: boolean; match?: any; error?: string }>({
     queryKey: [`/api/invite/${token}`],
+  });
+
+  const checkPhoneMutation = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      const response = await apiRequest('POST', `/api/invite/${token}/check-phone`, { phone: phoneNumber });
+      return await response.json();
+    },
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast({
+          title: 'Errore',
+          description: result.error || 'Errore durante la verifica',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (result.alreadyEnrolled) {
+        // Already enrolled - save phone and redirect to match page
+        localStorage.setItem('demo_phone', phone);
+        toast({
+          title: 'Già iscritto',
+          description: 'Sei già iscritto a questa partita',
+        });
+        setTimeout(() => {
+          setLocation(`/matches/${result.matchId}`);
+        }, 1500);
+        return;
+      }
+
+      if (result.playerExists) {
+        // Player exists - signup directly
+        setPlayerName(result.playerName);
+        signupMutation.mutate({ 
+          phone: normalizeE164(phone), 
+          name: '',
+          surname: '',
+          choice, 
+          suggestedRatings: null 
+        });
+      } else {
+        // New player - show profile form
+        setStep('profile');
+      }
+    },
   });
 
   const signupMutation = useMutation({
@@ -43,7 +92,9 @@ export default function InviteSignup({ params }: InviteSignupProps) {
     },
     onSuccess: (result) => {
       if (result.ok) {
-        setCompleted(true);
+        setStep('completed');
+        // Save phone for match view
+        localStorage.setItem('demo_phone', phone);
         toast({
           title: 'Iscrizione completata!',
           description: 'Sei stato registrato alla partita',
@@ -61,7 +112,7 @@ export default function InviteSignup({ params }: InviteSignupProps) {
     },
   });
 
-  const handleSignup = () => {
+  const handlePhoneSubmit = () => {
     if (!phone.trim()) {
       toast({
         title: 'Numero mancante',
@@ -71,6 +122,10 @@ export default function InviteSignup({ params }: InviteSignupProps) {
       return;
     }
 
+    checkPhoneMutation.mutate(phone);
+  };
+
+  const handleProfileSubmit = () => {
     if (!name.trim() || !surname.trim()) {
       toast({
         title: 'Dati incompleti',
@@ -116,7 +171,7 @@ export default function InviteSignup({ params }: InviteSignupProps) {
 
   const { match } = inviteData;
 
-  if (completed) {
+  if (step === 'completed') {
     return (
       <div className="min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-white rounded-2xl border border-green-200 p-8 text-center">
@@ -164,144 +219,138 @@ export default function InviteSignup({ params }: InviteSignupProps) {
           </div>
         </div>
 
-        {/* Signup Form */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-8">
-          <h2 className="text-lg font-semibold mb-6">Completa la tua iscrizione</h2>
-          
-          <div className="space-y-6">
-            {/* Personal Info */}
-            <div className="grid grid-cols-2 gap-4">
+        {/* Step 1: Phone + Choice */}
+        {step === 'phone' && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-8">
+            <h2 className="text-lg font-semibold mb-6">Iscrizione rapida</h2>
+            
+            <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="phone">Numero di telefono</Label>
                 <Input
-                  id="name"
-                  type="text"
-                  placeholder="Mario"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  data-testid="input-name-signup"
+                  id="phone"
+                  type="tel"
+                  placeholder="+39 333 1234567"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()}
+                  data-testid="input-phone"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="surname">Cognome</Label>
-                <Input
-                  id="surname"
-                  type="text"
-                  placeholder="Rossi"
-                  value={surname}
-                  onChange={(e) => setSurname(e.target.value)}
-                  data-testid="input-surname-signup"
-                />
+                <Label>Disponibilità</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <Button
+                    type="button"
+                    variant={choice === 'STARTER' ? 'default' : 'outline'}
+                    onClick={() => setChoice('STARTER')}
+                    className="w-full"
+                    data-testid="button-choice-starter"
+                  >
+                    Titolare
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={choice === 'RESERVE' ? 'default' : 'outline'}
+                    onClick={() => setChoice('RESERVE')}
+                    className="w-full"
+                    data-testid="button-choice-reserve"
+                  >
+                    Riserva
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={choice === 'NEXT' ? 'default' : 'outline'}
+                    onClick={() => setChoice('NEXT')}
+                    className="w-full"
+                    data-testid="button-choice-next"
+                  >
+                    Prossima
+                  </Button>
+                </div>
               </div>
+
+              <Button 
+                onClick={handlePhoneSubmit} 
+                className="w-full"
+                disabled={checkPhoneMutation.isPending || signupMutation.isPending}
+                data-testid="button-continue"
+              >
+                {checkPhoneMutation.isPending || signupMutation.isPending ? 'Caricamento...' : 'Continua'}
+              </Button>
             </div>
+          </div>
+        )}
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">Numero di Telefono</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+39 333 1234567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                data-testid="input-phone-signup"
-              />
-            </div>
-
-            {/* Rating Sliders */}
-            <div className="space-y-4 pt-4 border-t">
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Auto-valutazione abilità</h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Valuta le tue abilità da 1 (minimo) a 5 (massimo). Questo aiuterà a bilanciare meglio le squadre.
-                </p>
-              </div>
-
-              {AXES.map((axis) => (
-                <div key={axis} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor={`rating-${axis}`} className="text-sm">
-                      {AXIS_LABELS_IT[axis as AxisKey]}
-                    </Label>
-                    <span className="text-sm font-semibold text-blueTeam" data-testid={`text-rating-${axis}`}>
-                      {ratings[axis as keyof typeof ratings]}
-                    </span>
-                  </div>
-                  <Slider
-                    id={`rating-${axis}`}
-                    min={1}
-                    max={5}
-                    step={1}
-                    value={[ratings[axis as keyof typeof ratings]]}
-                    onValueChange={(value) => setRatings(prev => ({ ...prev, [axis]: value[0] }))}
-                    data-testid={`slider-rating-${axis}`}
+        {/* Step 2: Profile (only if new player) */}
+        {step === 'profile' && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-8">
+            <h2 className="text-lg font-semibold mb-6">Crea la tua scheda giocatore</h2>
+            
+            <div className="space-y-6">
+              {/* Personal Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Mario"
+                    data-testid="input-name"
                   />
                 </div>
-              ))}
-            </div>
-
-            {/* Availability Choice */}
-            <div className="space-y-3 pt-4 border-t">
-              <Label>Disponibilità</Label>
-              
-              <div className="grid gap-3">
-                <button
-                  onClick={() => setChoice('STARTER')}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    choice === 'STARTER' 
-                      ? 'border-blueTeam bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  data-testid="button-choice-starter"
-                >
-                  <div className="font-medium mb-1">Voglio giocare come titolare</div>
-                  <div className="text-sm text-muted-foreground">
-                    Sarò assegnato a una squadra (se ci sono posti disponibili)
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setChoice('RESERVE')}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    choice === 'RESERVE' 
-                      ? 'border-blueTeam bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  data-testid="button-choice-reserve"
-                >
-                  <div className="font-medium mb-1">Voglio essere una riserva</div>
-                  <div className="text-sm text-muted-foreground">
-                    Entrerò se qualcuno si ritira
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setChoice('NEXT')}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    choice === 'NEXT' 
-                      ? 'border-blueTeam bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  data-testid="button-choice-next"
-                >
-                  <div className="font-medium mb-1">Prossima volta</div>
-                  <div className="text-sm text-muted-foreground">
-                    Non posso partecipare a questa partita
-                  </div>
-                </button>
+                <div className="space-y-2">
+                  <Label htmlFor="surname">Cognome</Label>
+                  <Input
+                    id="surname"
+                    value={surname}
+                    onChange={(e) => setSurname(e.target.value)}
+                    placeholder="Rossi"
+                    data-testid="input-surname"
+                  />
+                </div>
               </div>
-            </div>
 
-            <Button
-              onClick={handleSignup}
-              disabled={signupMutation.isPending}
-              className="w-full"
-              size="lg"
-              data-testid="button-submit-signup"
-            >
-              {signupMutation.isPending ? 'Iscrizione in corso...' : 'Conferma Iscrizione'}
-            </Button>
+              {/* Ratings */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Autovalutazione parametri tecnici</h3>
+                <p className="text-xs text-muted-foreground">
+                  Valuta le tue capacità da 1 (principiante) a 5 (esperto)
+                </p>
+                
+                {AXES.map((axis) => (
+                  <div key={axis} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">{AXIS_LABELS_IT[axis]}</Label>
+                      <span className="text-sm font-semibold text-blueTeam">
+                        {ratings[axis]}
+                      </span>
+                    </div>
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[ratings[axis]]}
+                      onValueChange={([value]) => setRatings(prev => ({ ...prev, [axis]: value }))}
+                      data-testid={`slider-${axis}`}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <Button 
+                onClick={handleProfileSubmit} 
+                className="w-full"
+                disabled={signupMutation.isPending}
+                data-testid="button-complete-signup"
+              >
+                {signupMutation.isPending ? 'Registrazione...' : 'Completa iscrizione'}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

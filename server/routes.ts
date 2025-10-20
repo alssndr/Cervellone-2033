@@ -427,6 +427,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check phone number status for invite
+  app.post('/api/invite/:token/check-phone', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { phone } = req.body;
+      const normalized = normalizeE164(phone);
+
+      const payload: any = jwt.verify(token, JWT_SECRET);
+      const match = await storage.getMatch(payload.matchId);
+      
+      if (!match || match.status !== 'OPEN') {
+        return res.status(410).json({ ok: false, error: 'Match not open' });
+      }
+
+      // Check if player exists
+      const player = await storage.getPlayerByPhone(normalized);
+      
+      if (!player) {
+        return res.json({ 
+          ok: true, 
+          playerExists: false,
+          alreadyEnrolled: false,
+        });
+      }
+
+      // Check if already enrolled in this match
+      const signup = await storage.getSignup(match.id, player.id);
+      
+      if (signup) {
+        return res.json({
+          ok: true,
+          playerExists: true,
+          alreadyEnrolled: true,
+          matchId: match.id,
+          currentStatus: signup.status,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        playerExists: true,
+        alreadyEnrolled: false,
+        playerName: `${player.name} ${player.surname}`.trim(),
+      });
+    } catch (error: any) {
+      res.status(401).json({ ok: false, error: 'Invalid invite' });
+    }
+  });
+
+  // Public endpoint to change status (used from match view)
+  app.patch('/api/matches/:id/change-status', async (req, res) => {
+    try {
+      const { id: matchId } = req.params;
+      const { phone, status } = req.body;
+      const normalized = normalizeE164(phone);
+
+      // Get player
+      const player = await storage.getPlayerByPhone(normalized);
+      if (!player) {
+        return res.status(404).json({ ok: false, error: 'Player not found' });
+      }
+
+      // Get signup
+      const signup = await storage.getSignup(matchId, player.id);
+      if (!signup) {
+        return res.status(404).json({ ok: false, error: 'Not enrolled in this match' });
+      }
+
+      // Verify signup phone matches request phone (security check)
+      if (signup.phone !== normalized) {
+        return res.status(403).json({ ok: false, error: 'Cannot modify other users signup' });
+      }
+
+      const oldStatus = signup.status;
+
+      // Update status
+      await storage.updateSignup(signup.id, status);
+
+      // LOGIC: If was STARTER and now RESERVE/NEXT → promote first RESERVE to STARTER
+      if (oldStatus === 'STARTER' && (status === 'RESERVE' || status === 'NEXT')) {
+        const allSignups = await storage.getMatchSignups(matchId);
+        // Exclude the current user from promotion candidates
+        const reserves = allSignups.filter(s => s.status === 'RESERVE' && s.id !== signup.id);
+        
+        if (reserves.length > 0) {
+          // Promote first reserve to STARTER
+          const firstReserve = reserves[0];
+          await storage.updateSignup(firstReserve.id, 'STARTER');
+        }
+
+        // Regenerate variants after status change
+        await regenerateVariantsAndApplyV1(matchId);
+      }
+
+      // If changing TO STARTER, regenerate variants
+      if (status === 'STARTER') {
+        await regenerateVariantsAndApplyV1(matchId);
+      }
+
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   // Signup via invite
   app.post('/api/invite/:token/signup', async (req, res) => {
     try {
@@ -446,6 +551,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let isNewPlayer = false;
       
       if (!player) {
+        // New player - name and surname are required
+        if (!name || !surname) {
+          return res.status(400).json({ ok: false, error: 'Nome e cognome richiesti per nuovi giocatori' });
+        }
+        
         isNewPlayer = true;
         let user = await storage.getUserByPhone(normalized);
         if (!user) {
@@ -463,8 +573,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           phone: normalized,
         });
       } else {
-        // Update player name/surname if provided
-        await storage.updatePlayer(player.id, { name, surname });
+        // Existing player - update name/surname only if provided
+        if (name && surname) {
+          await storage.updatePlayer(player.id, { name, surname });
+        }
       }
 
       // Handle suggested ratings

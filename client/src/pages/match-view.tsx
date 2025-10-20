@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import TeamPanel from '@/components/TeamPanel';
 import RadarChart from '@/components/RadarChart';
 import FieldView from '@/components/FieldView';
@@ -15,6 +18,7 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
   const { id } = params;
   const [phone, setPhone] = useState('');
   const [inputPhone, setInputPhone] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     const saved = localStorage.getItem('demo_phone');
@@ -27,6 +31,35 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
   const { data, isLoading, error, refetch } = useQuery<{ ok: boolean; view: MatchView; error?: string }>({
     queryKey: [`/api/matches/${id}/public?phone=${encodeURIComponent(phone)}`],
     enabled: !!phone,
+  });
+
+  const changeStatusMutation = useMutation({
+    mutationFn: async (newStatus: 'STARTER' | 'RESERVE' | 'NEXT') => {
+      const response = await apiRequest('PATCH', `/api/matches/${id}/change-status`, {
+        phone,
+        status: newStatus,
+      });
+      return await response.json();
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith(`/api/matches/${id}/public`);
+        }
+      });
+      toast({
+        title: 'Stato aggiornato',
+        description: 'Il tuo stato è stato modificato con successo',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: error.message || 'Impossibile aggiornare lo stato',
+      });
+    },
   });
 
   const handleLoad = () => {
@@ -126,11 +159,22 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
             </div>
 
             {me && (
-              <div className="bg-white rounded-lg border border-gray-200 px-4 py-2">
-                <p className="text-xs text-muted-foreground">Il tuo ruolo</p>
-                <p className="text-sm font-semibold" data-testid="text-my-status">
-                  {me.status === 'STARTER' ? 'Titolare' : me.status === 'RESERVE' ? 'Riserva' : 'Prossimo'}
-                </p>
+              <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-2">Il tuo ruolo</p>
+                <Select
+                  value={me.status}
+                  onValueChange={(value) => changeStatusMutation.mutate(value as 'STARTER' | 'RESERVE' | 'NEXT')}
+                  disabled={changeStatusMutation.isPending}
+                >
+                  <SelectTrigger className="w-full" data-testid="select-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STARTER" data-testid="option-starter">Titolare</SelectItem>
+                    <SelectItem value="RESERVE" data-testid="option-reserve">Riserva</SelectItem>
+                    <SelectItem value="NEXT" data-testid="option-next">Prossima volta</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
