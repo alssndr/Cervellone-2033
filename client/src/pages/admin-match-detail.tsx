@@ -489,6 +489,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
            (statusOrder[b.status as keyof typeof statusOrder] || 999);
   });
 
+  // Calculate maximum starters allowed and current count
+  const maxStarters = match.sport === 'THREE' ? 3 : 
+                     match.sport === 'FIVE' ? 5 :
+                     match.sport === 'EIGHT' ? 8 : 11;
+  const currentStarters = signupsData?.signups?.filter(s => s.status === 'STARTER').length || 0;
+  const isStartersLimitReached = currentStarters >= maxStarters;
+
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'STARTER': return 'Titolare';
@@ -730,56 +737,318 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
           />
         </div>
 
-        {/* Enrolled Players Section */}
+        {/* Enrolled Players Section - Two Columns */}
         {enrolledPlayers.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4">Giocatori Schierati ({enrolledPlayers.length})</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              {enrolledPlayers.map((signup: any) => (
-                <div
-                  key={signup.signupId}
-                  className="border border-gray-200 rounded-lg p-4"
-                  data-testid={`enrolled-player-${signup.playerId}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm">
-                        {signup.player?.name} {signup.player?.surname}
-                      </h3>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {signup.player?.phone || 'Nessun telefono'}
-                      </p>
-                      <div className="mt-2">
-                        <span className="text-2xl font-bold text-blueTeam">
-                          {calculatePlayerAverage(signup.ratings)}
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-1">media</span>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0 w-32">
-                      <Select 
-                        value={signup.status} 
-                        onValueChange={(newStatus) => {
-                          updateStatusMutation.mutate({
-                            signupId: signup.signupId,
-                            status: newStatus,
-                          });
-                        }}
-                        disabled={updateStatusMutation.isPending}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="STARTER">Titolare</SelectItem>
-                          <SelectItem value="RESERVE">Riserva</SelectItem>
-                          <SelectItem value="NEXT">Prossimo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Squadra Chiara */}
+              <div className="border-2 border-pinkTeam/30 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
+                  {match.teamNameLight}
+                </h3>
+                
+                {/* Titolari */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Titolari</h4>
+                  <div className="space-y-2">
+                    {starters.light.map((player) => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === player.id);
+                      if (!signup) return null;
+                      return (
+                        <div
+                          key={player.id}
+                          className="border border-gray-200 rounded-lg p-3"
+                          data-testid={`light-starter-${player.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{player.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="STARTER">Titolare</SelectItem>
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {starters.light.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">Nessun titolare</p>
+                    )}
                   </div>
                 </div>
-              ))}
+
+                {/* Riserve */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Riserve</h4>
+                  <div className="space-y-2">
+                    {reserves.light.map((player) => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === player.id);
+                      if (!signup) return null;
+                      return (
+                        <div
+                          key={player.id}
+                          className="border border-gray-200 rounded-lg p-3"
+                          data-testid={`light-reserve-${player.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{player.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="STARTER" disabled={isStartersLimitReached}>
+                                  Titolare {isStartersLimitReached && '(Completo)'}
+                                </SelectItem>
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {reserves.light.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">Nessuna riserva</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Prossima volta */}
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
+                  <div className="space-y-2">
+                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'LIGHT').map((signup: any) => (
+                      <div
+                        key={signup.signupId}
+                        className="border border-gray-200 rounded-lg p-3"
+                        data-testid={`light-next-${signup.playerId}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Media: {calculatePlayerAverage(signup.ratings)}
+                            </p>
+                          </div>
+                          <Select 
+                            value={signup.status} 
+                            onValueChange={(newStatus) => {
+                              updateStatusMutation.mutate({
+                                signupId: signup.signupId,
+                                status: newStatus,
+                              });
+                            }}
+                            disabled={updateStatusMutation.isPending}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-28">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="STARTER" disabled={isStartersLimitReached}>
+                                Titolare {isStartersLimitReached && '(Completo)'}
+                              </SelectItem>
+                              <SelectItem value="RESERVE">Riserva</SelectItem>
+                              <SelectItem value="NEXT">Prossimo</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                    {!signupsData?.signups?.some((s: any) => s.status === 'NEXT' && s.reserveTeam === 'LIGHT') && (
+                      <p className="text-sm text-muted-foreground italic">Nessuno in attesa</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Squadra Scura */}
+              <div className="border-2 border-blueTeam/30 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#0000ff' }}>
+                  {match.teamNameDark}
+                </h3>
+                
+                {/* Titolari */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Titolari</h4>
+                  <div className="space-y-2">
+                    {starters.dark.map((player) => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === player.id);
+                      if (!signup) return null;
+                      return (
+                        <div
+                          key={player.id}
+                          className="border border-gray-200 rounded-lg p-3"
+                          data-testid={`dark-starter-${player.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{player.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="STARTER">Titolare</SelectItem>
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {starters.dark.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">Nessun titolare</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Riserve */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Riserve</h4>
+                  <div className="space-y-2">
+                    {reserves.dark.map((player) => {
+                      const signup = signupsData?.signups?.find(s => s.playerId === player.id);
+                      if (!signup) return null;
+                      return (
+                        <div
+                          key={player.id}
+                          className="border border-gray-200 rounded-lg p-3"
+                          data-testid={`dark-reserve-${player.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{player.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="STARTER" disabled={isStartersLimitReached}>
+                                  Titolare {isStartersLimitReached && '(Completo)'}
+                                </SelectItem>
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {reserves.dark.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">Nessuna riserva</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Prossima volta */}
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
+                  <div className="space-y-2">
+                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'DARK').map((signup: any) => (
+                      <div
+                        key={signup.signupId}
+                        className="border border-gray-200 rounded-lg p-3"
+                        data-testid={`dark-next-${signup.playerId}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Media: {calculatePlayerAverage(signup.ratings)}
+                            </p>
+                          </div>
+                          <Select 
+                            value={signup.status} 
+                            onValueChange={(newStatus) => {
+                              updateStatusMutation.mutate({
+                                signupId: signup.signupId,
+                                status: newStatus,
+                              });
+                            }}
+                            disabled={updateStatusMutation.isPending}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-28">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="STARTER" disabled={isStartersLimitReached}>
+                                Titolare {isStartersLimitReached && '(Completo)'}
+                              </SelectItem>
+                              <SelectItem value="RESERVE">Riserva</SelectItem>
+                              <SelectItem value="NEXT">Prossimo</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                    {!signupsData?.signups?.some((s: any) => s.status === 'NEXT' && s.reserveTeam === 'DARK') && (
+                      <p className="text-sm text-muted-foreground italic">Nessuno in attesa</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

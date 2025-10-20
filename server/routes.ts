@@ -329,6 +329,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // In-memory mutex for match-level signup operations (prevents race conditions)
+  const matchLocks = new Map<string, Promise<void>>();
+  
+  async function withMatchLock<T>(matchId: string, fn: () => Promise<T>): Promise<T> {
+    // Wait for any existing operation on this match to complete
+    while (matchLocks.has(matchId)) {
+      await matchLocks.get(matchId);
+    }
+    
+    // Create a new lock for this operation
+    let resolve: () => void;
+    const lock = new Promise<void>((r) => { resolve = r; });
+    matchLocks.set(matchId, lock);
+    
+    try {
+      // Execute the critical section
+      return await fn();
+    } finally {
+      // Release the lock
+      matchLocks.delete(matchId);
+      resolve!();
+    }
+  }
+
   // Update player signup status (admin)
   app.patch('/api/admin/signups/:signupId/status', adminAuth, async (req, res) => {
     try {
@@ -346,21 +370,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ ok: false, error: 'Signup non trovato' });
       }
 
-      const oldStatus = currentSignup.status;
-      const newStatus = status;
-      
-      // Update status
-      await storage.updateSignup(signupId, status as any);
+      // Use mutex to prevent concurrent modifications
+      const result = await withMatchLock(currentSignup.matchId, async () => {
+        const oldStatus = currentSignup.status;
+        const newStatus = status;
+        
+        // Check if trying to change to STARTER (race condition protection)
+        if (newStatus === 'STARTER' && oldStatus !== 'STARTER') {
+          const match = await storage.getMatch(currentSignup.matchId);
+          if (!match) {
+            throw new Error('Partita non trovata');
+          }
+          
+          const cap = startersCap(match.sport);
+          const signups = await storage.getMatchSignups(match.id);
+          const currentStarters = signups.filter(s => s.status === 'STARTER').length;
+          
+          if (currentStarters >= cap) {
+            throw new Error('Posti titolari esauriti. Non è possibile aggiungere altri titolari.');
+          }
+        }
+        
+        // Update status (now protected by mutex)
+        await storage.updateSignup(signupId, status as any);
 
-      // Regenerate variants if starter status changed
-      if (oldStatus !== newStatus && (oldStatus === 'STARTER' || newStatus === 'STARTER')) {
-        await regenerateVariantsAndApplyV1(currentSignup.matchId);
-        console.log(`[updateSignupStatus] Regenerated variants for match ${currentSignup.matchId} (status changed: ${oldStatus} → ${newStatus})`);
-      }
+        // Regenerate variants if starter status changed
+        if (oldStatus !== newStatus && (oldStatus === 'STARTER' || newStatus === 'STARTER')) {
+          await regenerateVariantsAndApplyV1(currentSignup.matchId);
+          console.log(`[updateSignupStatus] Regenerated variants for match ${currentSignup.matchId} (status changed: ${oldStatus} → ${newStatus})`);
+        }
+        
+        return { ok: true };
+      });
       
-      res.json({ ok: true });
+      res.json(result);
     } catch (error: any) {
-      res.status(500).json({ ok: false, error: error.message });
+      res.status(400).json({ ok: false, error: error.message });
     }
   });
 

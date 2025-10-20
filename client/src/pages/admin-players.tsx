@@ -242,7 +242,7 @@ export default function AdminPlayers() {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t">
+                    <div className="mt-4 pt-4 border-t flex gap-2">
                       <Button
                         onClick={() => approveMutation.mutate({ 
                           playerId: player.id, 
@@ -252,7 +252,23 @@ export default function AdminPlayers() {
                         data-testid={`button-approve-${player.id}`}
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        {approveMutation.isPending ? 'Approvazione...' : 'Approva Rating Suggeriti'}
+                        {approveMutation.isPending ? 'Approvazione...' : 'Approva'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          // Set suggested ratings as initial values for editing
+                          setEditingPlayer(player);
+                          const ratings: Record<string, number> = {};
+                          AXES.forEach(axis => {
+                            ratings[axis] = player.suggestedRatings?.[axis] || player.currentRatings?.[axis] || 3;
+                          });
+                          setEditedRatings(ratings);
+                        }}
+                        data-testid={`button-modify-${player.id}`}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Modifica
                       </Button>
                     </div>
                   </CardContent>
