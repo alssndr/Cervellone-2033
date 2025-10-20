@@ -4,6 +4,28 @@
 
 This application manages and balances sports teams for coaches and players. It enables administrators to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across six athletic attributes. The system supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual feedback on team balance through charts, field views, and statistics. The project aims to provide a robust, production-ready solution for sports team management with advanced features like real-time notifications, user role-based permissions, and a comprehensive lineup variant system.
 
+**Status**: ✅ Production Ready - Complete with user authentication, role-based permissions, and security hardening (October 20, 2025)
+
+## Recent Updates
+
+### User Role-Based Permissions System (October 20, 2025)
+
+Implemented dual authentication with role-based access control:
+
+1. **User Authentication** (`/api/user/login`): Phone-based login for regular users, separate token management, auto-creates USER role
+2. **User Endpoints**: GET `/api/user/matches` (enrolled matches only), PATCH `/api/user/matches/:id/status` (change own status)
+3. **Reserve Promotion Logic**: When STARTER changes to RESERVE/NEXT, first existing RESERVE auto-promotes (excludes user who just changed)
+4. **Frontend Pages**: `/user/login`, `/user/matches`, `/user/matches/:id` with status dropdowns and warnings
+5. **Access Control**: Admin routes protected by `adminAuth`, user routes by `userAuth`
+
+**Security Hardening**:
+- `userAuth` enforces role='USER' only (prevents admin token reuse)
+- PATCH endpoint verifies authenticated user owns the signup
+- GET endpoint scopes to authenticated user's phone/player
+- Multiple ownership checks prevent cross-user data access
+
+**Technical**: Dual middleware in server/routes.ts, frontend pages in client/src/pages/user-*.tsx, bug fix at line 647 excludes current signup from promotion
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
