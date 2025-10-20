@@ -227,6 +227,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
+      // Check if base variants exist, if not generate them first
+      const existingVariants = await storage.getMatchLineupVersions(id);
+      const hasBaseVariants = existingVariants.some(v => ['V1', 'V2', 'V3'].includes(v.variantType));
+      
+      if (!hasBaseVariants) {
+        // Try to generate base variants first (this may fail if no starters)
+        try {
+          const signups = await storage.getMatchSignups(id);
+          const starters = signups.filter(s => s.status === 'STARTER');
+          if (starters.length > 0) {
+            const versionIds = await generateLineupVariants(id);
+            console.log(`[generate-mvp] Generated ${versionIds.length} base variants before MVP`);
+          }
+        } catch (err: any) {
+          console.log(`[generate-mvp] Could not generate base variants: ${err.message}`);
+          // Continue with MVP generation even if base variants fail
+        }
+      }
+      
       const result = await generateMVPVariant(id);
       
       // Auto-apply the created MVP variant

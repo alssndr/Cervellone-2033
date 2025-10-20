@@ -488,7 +488,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   }
 
   const { match, starters, reserves, radar } = matchData.view;
-  const topVariants = variantsData?.variants?.slice(0, 3) || [];
+  // Show only V1, V2, V3 in top variants (exclude V4 and MVP which have their own buttons)
+  const topVariants = variantsData?.variants?.filter(v => ['V1', 'V2', 'V3'].includes(v.variantType)) || [];
 
   // Calculate team averages for selected variant
   const calculateTeamAverages = () => {
