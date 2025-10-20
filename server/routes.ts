@@ -812,6 +812,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function to regenerate variants and apply v1
   async function regenerateVariantsAndApplyV1(matchId: string) {
     try {
+      // Check if there are any starters before generating variants
+      const signups = await storage.getMatchSignups(matchId);
+      const starters = signups.filter(s => s.status === 'STARTER');
+      
+      if (starters.length === 0) {
+        console.log(`[regenerateVariantsAndApplyV1] No starters yet for match ${matchId}, skipping variant generation`);
+        return;
+      }
+      
       const versionIds = await generateLineupVariants(matchId);
       
       // Auto-apply v1 (first variant, most balanced)
