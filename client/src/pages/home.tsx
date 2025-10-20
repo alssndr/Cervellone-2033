@@ -50,10 +50,19 @@ export default function Home() {
         </div>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/admin/login">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link href="/user/login">
             <button
               className="px-6 py-3 bg-blueTeam text-white rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
+              data-testid="button-user-login"
+            >
+              Le mie partite
+            </button>
+          </Link>
+
+          <Link href="/admin/login">
+            <button
+              className="px-6 py-3 border-2 border-blueTeam text-blueTeam rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
               data-testid="button-admin-login"
             >
               Login Admin
@@ -62,7 +71,7 @@ export default function Home() {
           
           <Link href="/demo">
             <button
-              className="px-6 py-3 border-2 border-blueTeam text-blueTeam rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
+              className="px-6 py-3 border-2 border-gray-300 text-ink rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
               data-testid="button-demo"
             >
               Vedi Demo
