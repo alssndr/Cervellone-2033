@@ -489,12 +489,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
            (statusOrder[b.status as keyof typeof statusOrder] || 999);
   });
 
-  // Calculate maximum starters allowed and current count
-  const maxStarters = match.sport === 'THREE' ? 3 : 
-                     match.sport === 'FIVE' ? 5 :
-                     match.sport === 'EIGHT' ? 8 : 11;
+  // Calculate maximum starters allowed PER TEAM (total is double)
+  const maxStartersPerTeam = match.sport === 'THREE' ? 3 : 
+                              match.sport === 'FIVE' ? 5 :
+                              match.sport === 'EIGHT' ? 8 : 11;
+  const maxStartersTotal = maxStartersPerTeam * 2;
   const currentStarters = signupsData?.signups?.filter(s => s.status === 'STARTER').length || 0;
-  const isStartersLimitReached = currentStarters >= maxStarters;
+  const isStartersLimitReached = currentStarters >= maxStartersTotal;
 
   const getStatusLabel = (status: string) => {
     switch (status) {

@@ -415,8 +415,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        // Assign reserve team when changing from STARTER to RESERVE/NEXT
+        let reserveTeam: 'LIGHT' | 'DARK' | undefined = currentSignup.reserveTeam;
+        if (oldStatus === 'STARTER' && (newStatus === 'RESERVE' || newStatus === 'NEXT')) {
+          const lightCount = signups.filter(s => 
+            (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'LIGHT'
+          ).length;
+          const darkCount = signups.filter(s => 
+            (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'DARK'
+          ).length;
+          reserveTeam = lightCount <= darkCount ? 'LIGHT' : 'DARK';
+        }
+        
         // Update status (now protected by mutex)
-        await storage.updateSignup(signupId, status as any);
+        await storage.updateSignup(signupId, status as any, reserveTeam);
 
         // Regenerate variants if starter status changed
         if (oldStatus !== newStatus && (oldStatus === 'STARTER' || newStatus === 'STARTER')) {
