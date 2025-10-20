@@ -24,6 +24,7 @@ export const insertUserSchema = z.object({
   name: z.string().optional(),
   surname: z.string().optional(),
   role: Role.default('USER'),
+  password: z.string().optional(),
 });
 
 export const userSchema = insertUserSchema.extend({

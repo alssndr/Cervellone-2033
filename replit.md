@@ -6,6 +6,15 @@ This application manages and balances sports teams for coaches and players. It e
 
 **Status**: ✅ Production Ready - Complete with user authentication, role-based permissions, and security hardening (October 20, 2025)
 
+## Test Credentials
+
+Per facilitare i test, sono disponibili due utenti permanenti nel database:
+
+- **Admin**: phone `12345`, password `12345`
+- **Utente normale**: phone `6789`, password `6789`
+
+Questi utenti vengono creati automaticamente al seed del database.
+
 ## Recent Updates
 
 ### Streamlined Invite Flow + Public Status Changes (October 20, 2025)

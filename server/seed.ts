@@ -23,7 +23,37 @@ function randomRating(min = 1, max = 5): number {
 export async function seedPlayers() {
   console.log('🌱 Seeding database with placeholder players...');
 
-  // Create admin user if not exists
+  // Create test admin user (phone: 12345, password: 12345)
+  const testAdminPhone = normalizeE164('12345');
+  let testAdmin = await storage.getUserByPhone(testAdminPhone);
+  
+  if (!testAdmin) {
+    testAdmin = await storage.createUser({
+      phone: testAdminPhone,
+      name: 'Admin',
+      surname: 'Test',
+      role: 'ADMIN',
+      password: '12345',
+    });
+    console.log('✅ Test admin user created (phone: 12345, password: 12345)');
+  }
+
+  // Create test regular user (phone: 6789, password: 6789)
+  const testUserPhone = normalizeE164('6789');
+  let testUser = await storage.getUserByPhone(testUserPhone);
+  
+  if (!testUser) {
+    testUser = await storage.createUser({
+      phone: testUserPhone,
+      name: 'Mario',
+      surname: 'Rossi',
+      role: 'USER',
+      password: '6789',
+    });
+    console.log('✅ Test user created (phone: 6789, password: 6789)');
+  }
+
+  // Create legacy admin user if not exists (backward compatibility)
   const adminPhone = normalizeE164('+390000000000');
   let admin = await storage.getUserByPhone(adminPhone);
   
@@ -35,7 +65,10 @@ export async function seedPlayers() {
       surname: 'Sistema',
       role: 'ADMIN',
     });
-    console.log('✅ Admin user created');
+    console.log('✅ Legacy admin user created');
+  } else {
+    // Use test admin for match creation
+    admin = testAdmin;
   }
 
   // Create 22 placeholder players

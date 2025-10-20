@@ -61,16 +61,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin login (phone-based)
   app.post('/api/admin/login', async (req, res) => {
     try {
-      const { phone } = req.body;
+      const { phone, password } = req.body;
       const normalized = normalizeE164(phone);
       
       let user = await storage.getUserByPhone(normalized);
       if (!user) {
-        user = await storage.createUser({ phone: normalized, role: 'ADMIN' });
+        return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
       }
 
       if (user.role !== 'ADMIN') {
         return res.status(403).json({ ok: false, error: 'Not an admin user' });
+      }
+
+      // Verify password if user has one
+      if (user.password && user.password !== password) {
+        return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
       }
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
@@ -88,13 +93,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User login (phone-based) - for regular users
   app.post('/api/user/login', async (req, res) => {
     try {
-      const { phone } = req.body;
+      const { phone, password } = req.body;
       const normalized = normalizeE164(phone);
       
       let user = await storage.getUserByPhone(normalized);
       if (!user) {
-        // Create regular USER (not admin)
-        user = await storage.createUser({ phone: normalized, role: 'USER' });
+        return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
+      }
+
+      // Enforce USER role only
+      if (user.role !== 'USER') {
+        return res.status(403).json({ ok: false, error: 'Not a regular user account' });
+      }
+
+      // Verify password if user has one
+      if (user.password && user.password !== password) {
+        return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
       }
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
