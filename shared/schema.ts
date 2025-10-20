@@ -7,7 +7,7 @@ export const MatchStatus = z.enum(['OPEN', 'FROZEN', 'CLOSED']);
 export const SignupStatus = z.enum(['STARTER', 'RESERVE', 'NEXT']);
 export const TeamSide = z.enum(['LIGHT', 'DARK']);
 export const Algo = z.enum(['GREEDY_LOCAL', 'RANDOM_SEEDED', 'MANUAL']);
-export const VariantType = z.enum(['V1', 'V2', 'V3', 'V4', 'MVP']);
+export const VariantType = z.enum(['V1', 'V2', 'V3', 'V4']);
 
 export type Role = z.infer<typeof Role>;
 export type Sport = z.infer<typeof Sport>;

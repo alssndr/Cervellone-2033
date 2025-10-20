@@ -262,7 +262,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     },
   });
 
-  // Generate MVP variant mutation
+  // Generate MVP (promote top players to starters) mutation
   const generateMVPMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', `/api/admin/matches/${id}/generate-mvp`, {});
@@ -273,7 +273,25 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       return data;
     },
     onSuccess: async (result) => {
+      // Refresh signups (to show promoted starters)
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
+      
+      // Refresh lineups (to show generated v1, v2, v3)
       await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      
+      // Wait a bit for cache to clear
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Fetch fresh lineups to get v1 id
+      const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
+      const lineupsData = await response.json();
+      
+      // Select v1 (first variant, which was auto-applied)
+      if (lineupsData?.variants && lineupsData.variants.length > 0) {
+        const v1 = lineupsData.variants.find((v: any) => v.variantType === 'V1') || lineupsData.variants[0];
+        setSelectedVariant(v1.id);
+      }
+      
       // Refetch ALL public view queries
       await queryClient.refetchQueries({ 
         predicate: (query) => {
@@ -281,9 +299,10 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
           return key?.startsWith(`/api/matches/${id}/public`);
         }
       });
+      
       toast({
-        title: 'MVP generato!',
-        description: 'Migliori giocatori selezionati e bilanciati',
+        title: '✅ MVP completato!',
+        description: `${result.promotedCount} migliori giocatori promossi a titolari. Squadre bilanciate.`,
       });
     },
     onError: (error: Error) => {
@@ -638,13 +657,16 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
               </button>
               <button
                 onClick={() => handleVariantClick('mvp', -1)}
-                disabled={generateMVPMutation.isPending || applyVariantMutation.isPending}
+                disabled={currentStarters > 0 || generateMVPMutation.isPending || applyVariantMutation.isPending}
                 className={`w-14 h-12 rounded-full flex items-center justify-center font-semibold text-xs transition-all ${
-                  selectedVariant === 'mvp'
+                  currentStarters > 0
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : selectedVariant === 'mvp'
                     ? 'bg-amber-600 text-white shadow-lg'
                     : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-amber-600'
                 } ${(generateMVPMutation.isPending || applyVariantMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid="variant-selector-mvp"
+                title={currentStarters > 0 ? 'MVP disponibile solo senza titolari' : 'Seleziona migliori giocatori'}
               >
                 MVP
               </button>

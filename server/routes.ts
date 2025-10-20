@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
-import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant, generateMVPVariant } from "./services/lineup";
+import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant, promoteTopPlayersToStarters } from "./services/lineup";
 import { setupWebSocket, broadcastPlayerRegistered, broadcastVariantsRegenerated } from "./services/websocket";
 import jwt from "jsonwebtoken";
 
@@ -222,36 +222,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate MVP variant (admin)
+  // Promote top players to starters (MVP mode) (admin)
   app.post('/api/admin/matches/:id/generate-mvp', adminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       
-      // Check if base variants exist, if not generate them first
-      const existingVariants = await storage.getMatchLineupVersions(id);
-      const hasBaseVariants = existingVariants.some(v => ['V1', 'V2', 'V3'].includes(v.variantType));
+      // Promote top players to STARTER
+      const result = await promoteTopPlayersToStarters(id);
       
-      if (!hasBaseVariants) {
-        // Try to generate base variants first (this may fail if no starters)
-        try {
-          const signups = await storage.getMatchSignups(id);
-          const starters = signups.filter(s => s.status === 'STARTER');
-          if (starters.length > 0) {
-            const versionIds = await generateLineupVariants(id);
-            console.log(`[generate-mvp] Generated ${versionIds.length} base variants before MVP`);
-          }
-        } catch (err: any) {
-          console.log(`[generate-mvp] Could not generate base variants: ${err.message}`);
-          // Continue with MVP generation even if base variants fail
-        }
+      // Generate normal variants (v1, v2, v3) with the newly promoted starters
+      const versionIds = await generateLineupVariants(id);
+      
+      // Auto-apply v1 (first variant, most balanced)
+      if (versionIds.length > 0) {
+        await applyLineupVersion(versionIds[0]);
       }
       
-      const result = await generateMVPVariant(id);
-      
-      // Auto-apply the created MVP variant
-      await applyLineupVersion(result.id);
-      
-      res.json({ ok: true, variantId: result.id, meanDelta: result.meanDelta });
+      res.json({ ok: true, promotedCount: result.promotedCount, variantsGenerated: versionIds.length });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }

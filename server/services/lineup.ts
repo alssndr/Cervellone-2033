@@ -219,30 +219,36 @@ export async function getLineupVariants(matchId: string) {
   return variants.sort((a, b) => a.ordinal - b.ordinal);
 }
 
-export async function generateMVPVariant(matchId: string): Promise<{ id: string; meanDelta: number }> {
+export async function promoteTopPlayersToStarters(matchId: string): Promise<{ promotedCount: number }> {
   const match = await storage.getMatch(matchId);
   if (!match) throw new Error('Match not found');
 
   const cap = startersCap(match.sport);
-  const perTeam = cap / 2;
   
-  // Get ALL enrolled players (STARTER, RESERVE, NEXT)
+  // Check if there are already starters
   const signups = await storage.getMatchSignups(matchId);
-  const allPlayers = signups.filter(s => ['STARTER', 'RESERVE', 'NEXT'].includes(s.status));
+  const currentStarters = signups.filter(s => s.status === 'STARTER');
+  
+  if (currentStarters.length > 0) {
+    throw new Error('MVP disponibile solo senza titolari');
+  }
+  
+  // Get ALL enrolled players (RESERVE, NEXT only, since no STARTER exists)
+  const allPlayers = signups.filter(s => ['RESERVE', 'NEXT'].includes(s.status));
   
   if (allPlayers.length === 0) {
     throw new Error('Nessun giocatore iscritto per generare MVP');
   }
   
   // Build rated players array with mean ratings
-  const rated: RatedPlayer[] = await Promise.all(
+  const rated: Array<{ signupId: string; playerId: string; mean: number }> = await Promise.all(
     allPlayers.map(async s => {
       const ratings = await storage.getPlayerRatings(s.playerId);
       if (!ratings) {
         throw new Error(`Player ${s.playerId} has no ratings`);
       }
       const mean = (ratings.defense + ratings.attack + ratings.speed + ratings.power + ratings.technique + ratings.shot) / 6;
-      return { playerId: s.playerId, ratings, mean };
+      return { signupId: s.id, playerId: s.playerId, mean };
     })
   );
   
@@ -250,62 +256,15 @@ export async function generateMVPVariant(matchId: string): Promise<{ id: string;
   rated.sort((a, b) => b.mean - a.mean);
   const topPlayers = rated.slice(0, Math.min(cap, rated.length));
   
-  console.log(`[generateMVPVariant] Selected ${topPlayers.length} best players from ${rated.length} enrolled`);
+  console.log(`[promoteTopPlayersToStarters] Promoting ${topPlayers.length} best players from ${rated.length} enrolled to STARTER`);
   
-  // Balance top players using GREEDY_LOCAL
-  const seed = Date.now();
-  const result = balanceGreedyLocal(topPlayers, perTeam, seed, 500);
-  
-  // Calculate mean delta
-  const lightMean = result.light.length > 0
-    ? result.light.map(id => topPlayers.find(p => p.playerId === id)!).reduce((sum, p) => sum + p.mean, 0) / result.light.length
-    : 0;
-  
-  const darkMean = result.dark.length > 0
-    ? result.dark.map(id => topPlayers.find(p => p.playerId === id)!).reduce((sum, p) => sum + p.mean, 0) / result.dark.length
-    : 0;
-  
-  const meanDelta = Math.abs(lightMean - darkMean);
-  
-  // Delete existing MVP variant if exists
-  const existing = await storage.getMatchLineupVersions(matchId);
-  const mvp = existing.find(v => v.variantType === 'MVP');
-  if (mvp) {
-    await storage.deleteLineupVersion(mvp.id);
-    console.log(`[generateMVPVariant] Deleted existing MVP variant`);
+  // Promote top players to STARTER
+  for (const player of topPlayers) {
+    await storage.updateSignup(player.signupId, 'STARTER');
+    console.log(`[promoteTopPlayersToStarters] Promoted player ${player.playerId} to STARTER (mean: ${player.mean.toFixed(2)})`);
   }
   
-  // Create MVP variant
-  const version = await storage.createLineupVersion({
-    matchId,
-    ordinal: 4,
-    variantType: 'MVP',
-    algo: 'GREEDY_LOCAL',
-    seed,
-    score: result.score,
-    meanDelta,
-    recommended: false,
-  });
-  
-  // Create assignments
-  for (const playerId of result.light) {
-    await storage.createLineupAssignment({
-      lineupVersionId: version.id,
-      teamSide: 'LIGHT',
-      playerId,
-    });
-  }
-  for (const playerId of result.dark) {
-    await storage.createLineupAssignment({
-      lineupVersionId: version.id,
-      teamSide: 'DARK',
-      playerId,
-    });
-  }
-  
-  console.log(`[generateMVPVariant] Created MVP: score=${result.score.toFixed(2)}, meanDelta=${meanDelta.toFixed(3)}, ${result.light.length}L + ${result.dark.length}D`);
-  
-  return { id: version.id, meanDelta };
+  return { promotedCount: topPlayers.length };
 }
 
 export async function saveManualVariant(
