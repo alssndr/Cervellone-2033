@@ -205,6 +205,17 @@ export class PostgresStorage implements IStorage {
   }
 
   async deleteMatchLineupVersions(matchId: string): Promise<void> {
+    // First get all lineup versions for this match
+    const versions = await db.select().from(schema.lineupVersions)
+      .where(eq(schema.lineupVersions.matchId, matchId));
+    
+    // Delete all lineup assignments for each version (prevent FK constraint violation)
+    for (const version of versions) {
+      await db.delete(schema.lineupAssignments)
+        .where(eq(schema.lineupAssignments.lineupVersionId, version.id));
+    }
+    
+    // Now safe to delete lineup versions
     await db.delete(schema.lineupVersions).where(eq(schema.lineupVersions.matchId, matchId));
   }
 

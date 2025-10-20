@@ -267,7 +267,7 @@ export function normalizeE164(phone: string): string {
 }
 
 // ==================== Drizzle ORM Table Definitions ====================
-import { pgTable, varchar, text, timestamp, boolean, integer, real, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, boolean, integer, real, jsonb, bigint } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -345,7 +345,7 @@ export const lineupVersions = pgTable('lineup_versions', {
   ordinal: integer('ordinal').notNull(),
   variantType: varchar('variant_type', { length: 20 }).notNull(),
   algo: varchar('algo', { length: 50 }).notNull(),
-  seed: integer('seed'),
+  seed: bigint('seed', { mode: 'number' }),
   score: real('score').notNull(),
   meanDelta: real('mean_delta').notNull(),
   recommended: boolean('recommended').notNull().default(false),

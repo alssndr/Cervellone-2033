@@ -17,6 +17,42 @@ Questi utenti vengono creati automaticamente al seed del database.
 
 ## Recent Updates
 
+### PostgreSQL Migration + Data Persistence (October 20, 2025)
+
+Successfully migrated from in-memory storage to production-ready PostgreSQL database:
+
+1. **Database Schema Implementation**:
+   - Created complete Drizzle table definitions (pgTable) in shared/schema.ts
+   - All tables use VARCHAR UUIDs with `gen_random_uuid()` for primary keys
+   - Proper foreign key relationships with referential integrity
+   - Schema successfully applied to Neon PostgreSQL database
+
+2. **PostgresStorage Implementation**:
+   - Full implementation of IStorage interface using Drizzle ORM
+   - All 40+ methods migrated from MemStorage to database operations
+   - Maintains backward compatibility with existing application logic
+   - Transaction support for data integrity
+
+3. **Bug Fixes During Migration**:
+   - **BIGINT Seed Column**: Changed lineup_versions.seed from INTEGER to BIGINT to handle JavaScript timestamps (Date.now())
+   - **FK Constraint Resolution**: Modified deleteMatchLineupVersions to delete lineup_assignments before lineup_versions, preventing foreign key violations
+   - **Starter Cap Validation**: Added validation when admin manually adds players to prevent exceeding capacity (e.g., 6 for 3v3)
+
+4. **Data Persistence Benefits**:
+   - Test users (admin phone "12345", user phone "6789") persist across server restarts
+   - Match history and player data retained in database
+   - Automatic database seeding on first startup
+   - Production-ready data integrity and reliability
+
+**Technical Implementation**:
+- Database: Neon PostgreSQL (serverless)
+- ORM: Drizzle with @neondatabase/serverless driver
+- Migration: `npm run db:push --force` for schema updates
+- Seed: server/seed.ts creates test users and sample matches
+- Files: server/storage/postgres.ts, server/db/index.ts, shared/schema.ts
+
+**Tested**: End-to-end Playwright tests verify login, match creation, player addition, lineup generation, and starter cap enforcement without errors
+
 ### Starter Cap Fixes + Reserve Team Assignment (October 20, 2025)
 
 Corrected starter capacity calculations and improved reserve team management:
