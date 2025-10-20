@@ -1,0 +1,33 @@
+– ADMIN Solo per l’utente admin, dopo V! c’è MVP che mette in campo automaticamente le squadre migliori e meglio bilanciate scegliendo tra tutti gli iscritti.
+Nella sezione “gestione giocatori”, dopo aver cliccato su “approva rating suggeriti”, il box del nuovo giocatore sparisce e va nel suo posto assieme agli altri.
+“approva rating suggeriti” diventa “approva”
+Vicino al nuovo “approva” c’è “modifica”: cliccandolo, l’admin accede alla scheda del giocatore, può modificare i dati che ritiene giusto verificare e salva la scheda con le modifiche. A quel punto, dopo essere stata salvata dall’admin, la scheda sparisce dalla sezione “da approvare” e si mischia in modo ordinato alle altre schede.
+
+
+– Visualizzazione squadra
+Nella pagina della partita, sotto il campo, ci sono due colonne:
+una per Chiari
+una per Scuri.
+Ogni colonna mostra i giocatori con nome, cognome e stato.
+ Le sezioni devono essere visivamente divise in:
+Titolari
+Riserve
+Prossima volta
+Accanto a ogni nome → menu a tendina per cambiare lo stato.
+Se il numero massimo di titolari per la partita è già raggiunto (3vs3, 5vs5, 8vs8, 11vs11):
+i giocatori con stato “Riserva” o “Prossima volta” non devono vedere l’opzione “Titolare”.
+L’opzione “Titolare” torna disponibile solo se un titolare cambia stato in “Riserva” o “Prossima volta”.
+
+– Errore iscrizione riserva (fix critico)
+Attualmente, se una partita è appena creata e un giocatore si iscrive come Riserva, compare:
+500: {“ok”:false,“error”:“Serve almeno 1 giocatore titolare per generare le squadre”}
+Fix richiesto:
+ Il sistema deve accettare senza errori l’iscrizione come riserva anche se non ci sono ancora titolari.
+ L’algoritmo di bilanciamento parte solo quando esiste almeno un titolare.
+ 
+–  Messaggi e feedback
+Il messaggio di “OK” deve apparire solo dopo che il sistema ha verificato e salvato la richiesta.
+Se due giocatori inviano contemporaneamente la richiesta di diventare titolari:
+uno riceve “OK, sei titolare”
+l’altro riceve “Posto esaurito, sei riserva”.
+Nessun messaggio doppio o prematuro.
