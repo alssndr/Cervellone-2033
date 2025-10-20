@@ -14,6 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'producti
 
 interface AuthRequest extends Request {
   adminUser?: User;
+  user?: User; // For regular user authentication
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -28,6 +29,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.adminUser = await storage.getUser(payload.userId);
       if (!req.adminUser || req.adminUser.role !== 'ADMIN') {
         return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+      next();
+    } catch {
+      return res.status(401).json({ ok: false, error: 'Invalid token' });
+    }
+  };
+
+  // User authentication middleware (for regular users)
+  const userAuth = async (req: AuthRequest, res: any, next: any) => {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.user_token;
+    if (!token) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+    try {
+      const payload: any = jwt.verify(token, JWT_SECRET);
+      req.user = await storage.getUser(payload.userId);
+      if (!req.user) {
+        return res.status(401).json({ ok: false, error: 'User not found' });
       }
       next();
     } catch {
@@ -57,6 +76,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'lax'
       });
       res.json({ ok: true, token });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // User login (phone-based) - for regular users
+  app.post('/api/user/login', async (req, res) => {
+    try {
+      const { phone } = req.body;
+      const normalized = normalizeE164(phone);
+      
+      let user = await storage.getUserByPhone(normalized);
+      if (!user) {
+        // Create regular USER (not admin)
+        user = await storage.createUser({ phone: normalized, role: 'USER' });
+      }
+
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
+      res.cookie('user_token', token, { 
+        httpOnly: true, 
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        sameSite: 'lax'
+      });
+      res.json({ ok: true, token, role: user.role });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -500,6 +543,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
       broadcastPlayerRegistered(match.id, `${player.name} ${player.surname}`);
 
       res.json({ ok: true, matchId: match.id });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Get user's matches (only matches where user is enrolled)
+  app.get('/api/user/matches', userAuth, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const userWithPlayer = await storage.getUserByPhone(req.user!.phone);
+      
+      if (!userWithPlayer) {
+        return res.json({ ok: true, matches: [] });
+      }
+
+      // Get player associated with this user
+      const players = await storage.getAllPlayers();
+      const player = players.find(p => p.phone === userWithPlayer.phone);
+      
+      if (!player) {
+        return res.json({ ok: true, matches: [] });
+      }
+
+      // Get all matches and find ones where this player is enrolled
+      const allMatches = await storage.getAllMatches();
+      const matchesWithStatus = await Promise.all(
+        allMatches.map(async (match) => {
+          const signup = await storage.getSignup(match.id, player.id);
+          if (!signup) return null;
+          return {
+            ...match,
+            myStatus: signup.status,
+            signupId: signup.id,
+          };
+        })
+      );
+
+      const matches = matchesWithStatus.filter(m => m !== null);
+
+      res.json({ ok: true, matches });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Change user's own status in a match
+  app.patch('/api/user/matches/:id/status', userAuth, async (req: AuthRequest, res) => {
+    try {
+      const { id: matchId } = req.params;
+      const { status } = req.body; // New status: STARTER, RESERVE, or NEXT
+      
+      const userWithPlayer = await storage.getUserByPhone(req.user!.phone);
+      if (!userWithPlayer) {
+        return res.status(404).json({ ok: false, error: 'User not found' });
+      }
+
+      // Get player
+      const players = await storage.getAllPlayers();
+      const player = players.find(p => p.phone === userWithPlayer.phone);
+      if (!player) {
+        return res.status(404).json({ ok: false, error: 'Player not found' });
+      }
+
+      // Get signup
+      const signup = await storage.getSignup(matchId, player.id);
+      if (!signup) {
+        return res.status(404).json({ ok: false, error: 'Not enrolled in this match' });
+      }
+
+      const oldStatus = signup.status;
+
+      // Update status
+      await storage.updateSignup(signup.id, status);
+
+      // LOGIC: If was STARTER and now RESERVE/NEXT → promote first RESERVE to STARTER
+      if (oldStatus === 'STARTER' && (status === 'RESERVE' || status === 'NEXT')) {
+        console.log(`[USER STATUS CHANGE] ${player.name} changed from STARTER to ${status} - checking for reserves to promote`);
+        
+        const allSignups = await storage.getMatchSignups(matchId);
+        const reserves = allSignups.filter(s => s.status === 'RESERVE');
+        
+        if (reserves.length > 0) {
+          // Promote first reserve to STARTER
+          const firstReserve = reserves[0];
+          await storage.updateSignup(firstReserve.id, 'STARTER');
+          console.log(`[USER STATUS CHANGE] Promoted ${firstReserve.playerId} from RESERVE to STARTER`);
+        }
+
+        // Regenerate variants after status change
+        await regenerateVariantsAndApplyV1(matchId);
+      }
+
+      // If changing TO STARTER, regenerate variants
+      if (status === 'STARTER') {
+        await regenerateVariantsAndApplyV1(matchId);
+      }
+
+      res.json({ ok: true, message: 'Status updated successfully' });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }
