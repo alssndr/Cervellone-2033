@@ -52,12 +52,14 @@ export default function UserMatchDetail({ params }: UserMatchDetailProps) {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: 'Stato aggiornato',
         description: 'Il tuo stato è stato aggiornato con successo',
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/user/matches'] });
+      // Force refetch to bypass cache
+      await queryClient.invalidateQueries({ queryKey: ['/api/user/matches'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/user/matches'] });
     },
     onError: () => {
       toast({

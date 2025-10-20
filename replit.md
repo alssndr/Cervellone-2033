@@ -2,83 +2,7 @@
 
 ## Overview
 
-This is a sports team management and balancing application designed for coaches and players. The system allows admins to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across multiple athletic attributes. The application supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual representations of team balance through charts, field views, and statistics panels.
-
-**Status**: ✅ Production Ready - Cervellone 2.0 complete with typed variants, v4 manual mode, real-time notifications (October 17, 2025)
-
-## Major System Rewrite (October 17, 2025)
-
-**Cervellone 2.0: Complete Variant System Overhaul**
-
-The lineup variant system has been completely rewritten from scratch to meet exact specifications. The new implementation provides predictable, typed variant generation with manual override capabilities.
-
-**Core Changes:**
-
-1. **Typed Variant System (V1/V2/V3/V4)**:
-   - Schema updated with `VariantType` enum ('V1', 'V2', 'V3', 'V4') and `meanDelta` field
-   - Exactly 3 variants generated per match using GREEDY_LOCAL algorithm
-   - v1 = minimum mean delta (most balanced), v3 = maximum among the 3
-   - Variants ordered by `meanDelta` and stored with `ordinal` field
-   - Frontend displays variants using `variantType` property (v1, v2, v3) instead of array index
-
-2. **v4 Manual Mode** (Complete Implementation):
-   - Backend: `saveManualVariant()` service validates starters, calculates meanDelta, persists V4 variant
-   - API route: `POST /api/admin/matches/:id/save-manual-variant` with lightIds/darkIds
-   - Frontend: Purple UI panel with swap buttons (← →) for moving players between teams
-   - Auto-save with 500ms debounce, only saves after deliberate user edits (isV4Dirty flag)
-   - Loads existing V4 on selection, fallback to starter split only if no V4 exists
-   - Persists across reloads, deleted when starters change
-
-3. **WebSocket Real-Time Notifications**:
-   - Server: WebSocket on path `/ws/matches` (avoids Vite HMR conflict)
-   - Broadcasts `PLAYER_REGISTERED` and `VARIANTS_REGENERATED` events
-   - Frontend: WebSocket client in admin-match-detail listens for matchId-specific events
-   - Toast notification: "Si è aggiunto un nuovo giocatore. Sto rigenerando le squadre" with OK button
-   - After OK click: refetches variants and applies v1
-
-4. **UI/UX Improvements**:
-   - Toast notifications repositioned to top-right corner (Toaster component)
-   - Player lists ordered: Titolari → Riserve → Prossimi (status-based sort)
-   - Auto-redirect to `/admin/matches/:id` after match creation
-   - Variant buttons display using `variantType` property (v1, v2, v3, v!) instead of calculated idx+1
-
-5. **Automatic Variant Regeneration**:
-   - Variants regenerate when starters change (status update to STARTER or new player added as STARTER)
-   - All variants (v1/v2/v3/v4) deleted before regeneration via `deleteMatchLineupVersions()`
-   - v1 automatically applied after regeneration (most balanced)
-   - Frontend refetches and updates UI immediately
-
-**Technical Implementation:**
-
-- **Storage Layer**: Enhanced with atomic variant deletion (`deleteMatchLineupVersions`, `deleteLineupVersion`)
-- **Lineup Service**: `generateLineupVariants()` generates ONLY 3 GREEDY_LOCAL variants, ordered by meanDelta
-- **Routes**: `regenerateVariantsAndApplyV1()` helper function triggers regeneration + WebSocket broadcast
-- **Frontend**: v4 state with `isV4Dirty` flag prevents premature auto-save, loads existing V4 correctly
-
-**End-to-End Test Verification** (October 17, 2025):
-- ✅ Login → Create match → Auto-redirect to detail page
-- ✅ Add 2 players as starters → v1/v2/v3 generated and displayed
-- ✅ Click v1, v2, v3 → Variants apply correctly
-- ✅ Click v! → Manual UI appears with swap buttons
-- ✅ Swap player Light → Dark → v4 saved with meanDelta
-- ✅ Reload → v4 persists, configuration intact
-
-## Recent Bug Fixes (October 16, 2025)
-
-**Critical Fix: Lineup Variant Application Issue**
-
-**Problem:** When adding players to a match, the system would generate new lineup variants correctly (visible in backend logs showing "3 light + 3 dark"), but the frontend would always apply the first/oldest variant (with only 1 player) instead of the newly generated ones.
-
-**Root Cause:** The `fetch()` call to `/api/admin/matches/:id/lineups` was missing JWT authentication cookies, resulting in 401 responses. This caused the frontend to fall back to cached data containing old variant IDs.
-
-**Solution:** 
-1. Use `apiRequest()` instead of plain `fetch()` to include authentication headers
-2. Reset `selectedVariant` state to null before regenerating
-3. Add 100ms delay to ensure backend completes variant creation
-4. Fetch fresh variants WITH authentication
-5. Apply the newly generated variant (first in the list)
-
-**Verification:** Backend logs now show correct variant IDs being applied after generation. Console logs include `[ADD_PLAYER]` and `[UPDATE_STATUS]` markers for debugging.
+This application manages and balances sports teams for coaches and players. It enables administrators to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across six athletic attributes. The system supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual feedback on team balance through charts, field views, and statistics. The project aims to provide a robust, production-ready solution for sports team management with advanced features like real-time notifications, user role-based permissions, and a comprehensive lineup variant system.
 
 ## User Preferences
 
@@ -88,169 +12,63 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-**Framework**: React with TypeScript using Vite as the build tool
+**Framework**: React with TypeScript, using Vite.
 
-**UI Component System**: 
-- Radix UI primitives for accessible, unstyled components
-- shadcn/ui component library (New York style variant)
-- Tailwind CSS for styling with custom design tokens
+**UI Component System**: Radix UI primitives, shadcn/ui (New York style), and Tailwind CSS with custom design tokens.
 
-**State Management**:
-- TanStack Query (React Query) for server state management
-- Local React state for UI interactions
-- React Hook Form with Zod resolvers for form validation
+**State Management**: TanStack Query for server state, local React state for UI.
 
-**Routing**: 
-- Wouter for client-side routing (lightweight alternative to React Router)
-- Key routes include admin dashboard, match view, invite signup, and public match display
+**Routing**: Wouter.
 
-**Design System**:
-- Material Design foundation with sports management focus
-- Custom color palette optimized for outdoor/mobile viewing with high contrast
-- Light mode primary with dark mode support
-- Design emphasizes clarity, action-oriented workflows, and data legibility
-- **Team Colors** (Updated October 2025):
-  - Squadra Chiara (LIGHT): #fc0fc0 (rosa/magenta)
-  - Squadra Scura (DARK): #0000ff (blu)
-  - Applied in: Radar charts, field visualization, player badges
+**Design System**: Material Design foundation, custom color palette optimized for outdoor/mobile viewing, with primary light mode and dark mode support. Emphasizes clarity, action-oriented workflows, and data legibility. Team colors for "Squadra Chiara" (#fc0fc0) and "Squadra Scura" (#0000ff) are consistently applied.
 
 ### Backend Architecture
 
-**Server Framework**: Express.js with TypeScript
+**Server Framework**: Express.js with TypeScript.
 
-**Development Setup**:
-- Vite middleware for hot module replacement in development
-- TSX for TypeScript execution
-- Concurrent development server setup
-
-**API Design**:
-- RESTful endpoints with JSON responses
-- Cookie-based JWT authentication for admin users
-- Phone number-based user identification
-- Token-based invite system for match signups
+**API Design**: RESTful with JSON responses, cookie-based JWT authentication for admins, phone number-based user identification, and token-based invite system.
 
 **Core Services**:
+1.  **Team Balancing Algorithms**:
+    *   **GREEDY_LOCAL**: Greedy algorithm with local search, balancing across 6 athletic axes (defense, attack, speed, power, technique, shot) with weighted scoring (70% axis, 30% mean balance).
+    *   **RANDOM_SEEDED**: Randomized assignment with consistent seeding.
+2.  **Lineup Version System**: Generates multiple team configurations (default 3 GREEDY_LOCAL variants), scores them, and marks the best-balanced option (V1). Includes manual V4 mode.
+3.  **Match View Builder**: Constructs public match data.
+4.  **Storage Abstraction**: Interface-based for database flexibility.
+5.  **Audit System**: Tracks player-suggested ratings for admin review.
+6.  **WebSocket Real-Time Notifications**: Broadcasts `PLAYER_REGISTERED` and `VARIANTS_REGENERATED` events.
 
-1. **Team Balancing Algorithms**: 
-   - **GREEDY_LOCAL**: Greedy algorithm with local search optimization that balances teams across 6 athletic axes (defense, attack, speed, power, technique, shot). Minimizes differences using weighted scoring (70% axis balance, 30% mean balance).
-   - **RANDOM_SEEDED**: Randomized team assignment with consistent seeding for reproducibility.
-
-2. **Lineup Version System**: Multi-variant lineup generation service that creates multiple team configurations, scores each variant, and marks the best-balanced option as recommended. Supports batch generation (default: 5 variants) with different algorithms.
-
-3. **Match View Builder**: Constructs public-facing match data including team rosters, starters, reserves, and statistical comparisons.
-
-4. **Storage Abstraction**: Interface-based storage layer allowing for flexible database implementations.
-
-5. **Audit System**: Tracks player-suggested ratings from signup for admin review and approval workflow.
+**Admin Features**:
+*   Player rating editing.
+*   Manual player addition to matches.
+*   Manual player creation.
+*   Automatic variant regeneration and V1 application upon starter changes.
+*   User role-based permissions for admin and regular users, including specific user endpoints and status change logic with reserve promotion.
 
 ### Data Storage
 
-**ORM/Query Builder**: Drizzle ORM configured for PostgreSQL
+**ORM/Query Builder**: Drizzle ORM.
 
-**Database Provider**: Neon Database (serverless PostgreSQL)
+**Database Provider**: Neon Database (serverless PostgreSQL).
 
-**Schema Design**:
+**Schema Design**: Includes tables for Users, Players, PlayerRatings, Matches, Signups, Teams, TeamAssignments, LineupVersion, LineupAssignment, and AuditLog.
 
-- **Users**: Admin and player authentication via phone numbers
-- **Players**: Individual player profiles with name, surname, contact information
-- **PlayerRatings**: Six-axis skill ratings (defense, attack, speed, power, technique, shot) on 1-5 scale
-- **Matches**: Event details including sport type, datetime, location, status (OPEN/FROZEN/CLOSED)
-- **Signups**: Player registration for matches with status (STARTER/RESERVE/NEXT)
-- **Teams**: Light and Dark team divisions per match
-- **TeamAssignments**: Junction table linking players to teams
-- **LineupVersion**: Multiple lineup variants per match with algorithm type (GREEDY_LOCAL/RANDOM_SEEDED), balance score, and recommendation flag
-- **LineupAssignment**: Player-to-team assignments for each lineup version
-- **AuditLog**: Tracks player-suggested ratings from signup for admin review
+**Data Flow**: Admin creates match and invites players, players self-rate and sign up, admin reviews/approves ratings, system generates and applies balanced lineup variants, public view displays teams.
 
-**Data Flow**:
-1. Admin creates match → generates invite token
-2. Players access invite URL → submit name, surname, phone number, and self-rate 6 athletic attributes
-3. System identifies/creates player → records signup with suggestedRatings in AuditLog
-4. Admin reviews players page → approves or modifies suggested ratings
-5. Admin generates lineup variants → system creates multiple balanced team options with scoring
-6. Admin selects and applies preferred variant → updates match teams
-7. Public match view displays balanced teams with statistics
-
-**Admin Player Management Features** (Added October 2025):
-
-1. **Edit Player Ratings**: Admin can modify any player's 6 athletic ratings through a dialog interface with sliders. Changes are saved immediately and reflected across all match lineups.
-   - Endpoint: `PATCH /api/admin/players/:id/ratings`
-   - UI: Edit button on each player card opens rating modification dialog
-
-2. **Add Player to Match Manually**: Admin can manually add any existing player to a match without requiring an invite link. Allows selection of match and player status (Starter/Reserve/Next).
-   - Endpoint: `POST /api/admin/players/:id/add-to-match`
-   - UI: "Aggiungi a Partita" button on player cards opens match selection dialog
-
-3. **Create Player Manually**: Admin can create new players directly without requiring signup via invite link. Form includes name, surname, optional phone number, and initial 6 athletic ratings.
-   - Endpoint: `POST /api/admin/players`
-   - UI: "Crea Giocatore" button at top of players page opens creation dialog
-   - Automatically creates associated user record if phone number provided
-
-**UX Improvements** (October 2025):
-
-1. **Match Creation Defaults**: 
-   - Sport: 3v3 (most common format)
-   - Date/Time: +24 hours from creation
-   - Location: "Da definire" placeholder
-
-2. **Admin Match Detail Page** (`/admin/matches/:id`):
-   - **Variant Selection**: Circular buttons (v1, v2, v3, v!) positioned top-right above field for real-time variant switching
-   - **Visual Displays** (in order):
-     - Field visualization (500px height) with player names on colored badges
-     - Team rosters in two columns (Chiari/Scuri) with numbered player lists
-     - Radar chart comparing team attributes
-     - Team statistics panels showing axis means
-   - **Player Management**:
-     - Giocatori Schierati: Enrolled players with status dropdown (Titolare/Riserva/Prossimo)
-     - Aggiungi Giocatore: Shows only available players (prevents duplicates)
-   - **Auto-rebalancing**: Regenerates and applies lineup variants after player additions or status changes
-   - **Browser cache fix**: Force refetch after lineup application ensures immediate visual updates
-   - **Flexible team sizes**: Works with any number of players (1+), balances optimally based on available players
-
-3. **Public Match View Layout**: 
-   - Field visualization at top (always visible, 500px height)
-   - Radar chart below field
-   - Team statistics panels in two columns at bottom
-
-4. **Admin Players Page Redesign** (`/admin/players`):
-   - 2-column grid layout (md:grid-cols-2)
-   - Vertical player cards with centered content
-   - Prominent average rating display (4xl font, blue color) with "MEDIA" label
-   - Rating details in compact 2-column grid
-   - Stacked action buttons
-
-5. **Admin Matches List**:
-   - Simplified "Gestisci" (Manage) button replacing "Visualizza"
-   - Direct navigation to match detail page with variant controls
-
-**Seed Data**:
-- 22 placeholder players with randomized ratings (pre-seeded on startup)
-- 3 sample matches for testing (ELEVEN/11v11, EIGHT/8v8, FIVE/5v5)
-- Admin user: phone +39 333 0000000
-
-### External Dependencies
+## External Dependencies
 
 **Third-Party Services**:
-- Neon Database (serverless PostgreSQL hosting)
-- Google Fonts CDN (Inter, DM Sans, Architects Daughter, Fira Code, Geist Mono)
+*   Neon Database (serverless PostgreSQL hosting).
+*   Google Fonts CDN (Inter, DM Sans, Architects Daughter, Fira Code, Geist Mono).
 
 **Key Libraries**:
-- **Authentication**: jsonwebtoken for JWT token generation/validation
-- **Data Visualization**: Chart.js with react-chartjs-2 for radar charts and statistics
-- **Form Management**: React Hook Form with @hookform/resolvers and Zod schemas
-- **Database**: Drizzle ORM with @neondatabase/serverless driver
-- **Session Management**: cookie-parser for HTTP cookie handling
-- **UI Components**: Comprehensive Radix UI primitives suite (@radix-ui/react-*)
+*   **Authentication**: `jsonwebtoken`.
+*   **Data Visualization**: Chart.js with `react-chartjs-2`.
+*   **Form Management**: React Hook Form with `@hookform/resolvers` and Zod.
+*   **Database**: Drizzle ORM with `@neondatabase/serverless` driver.
+*   **Session Management**: `cookie-parser`.
+*   **UI Components**: Radix UI primitives (`@radix-ui/react-*`).
 
-**Development Tools**:
-- TypeScript for type safety
-- ESBuild for production bundling
-- Tailwind CSS with PostCSS for styling
-- Replit-specific plugins for development experience
+**Development Tools**: TypeScript, ESBuild, Tailwind CSS, PostCSS.
 
-**Phone Number Normalization**: E.164 format standardization for international phone number handling
-
-**API Security**: 
-- HTTP-only cookies for token storage
-- Bearer token support in authorization headers
-- Environment-based JWT secret configuration with production safety checks
+**API Security**: HTTP-only cookies for tokens, Bearer token support, environment-based JWT secret configuration.

@@ -48,6 +48,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user) {
         return res.status(401).json({ ok: false, error: 'User not found' });
       }
+      // Enforce: only USER role can access user endpoints (prevent admin token reuse)
+      if (req.user.role !== 'USER') {
+        return res.status(403).json({ ok: false, error: 'User endpoints require USER role' });
+      }
       next();
     } catch {
       return res.status(401).json({ ok: false, error: 'Invalid token' });
@@ -594,9 +598,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id: matchId } = req.params;
       const { status } = req.body; // New status: STARTER, RESERVE, or NEXT
       
+      // SECURITY: Verify the authenticated user owns this data
       const userWithPlayer = await storage.getUserByPhone(req.user!.phone);
       if (!userWithPlayer) {
         return res.status(404).json({ ok: false, error: 'User not found' });
+      }
+
+      // Verify user ID matches authenticated user
+      if (userWithPlayer.id !== req.user!.id) {
+        return res.status(403).json({ ok: false, error: 'Cannot modify other users data' });
       }
 
       // Get player
@@ -606,10 +616,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ ok: false, error: 'Player not found' });
       }
 
-      // Get signup
+      // Get signup - MUST belong to this user's player
       const signup = await storage.getSignup(matchId, player.id);
       if (!signup) {
         return res.status(404).json({ ok: false, error: 'Not enrolled in this match' });
+      }
+
+      // Additional security check: verify signup phone matches authenticated user
+      if (signup.phone !== req.user!.phone) {
+        return res.status(403).json({ ok: false, error: 'Cannot modify other users signup' });
       }
 
       const oldStatus = signup.status;
@@ -622,7 +637,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[USER STATUS CHANGE] ${player.name} changed from STARTER to ${status} - checking for reserves to promote`);
         
         const allSignups = await storage.getMatchSignups(matchId);
-        const reserves = allSignups.filter(s => s.status === 'RESERVE');
+        // Exclude the current user from promotion candidates (they just changed to RESERVE/NEXT)
+        const reserves = allSignups.filter(s => s.status === 'RESERVE' && s.id !== signup.id);
         
         if (reserves.length > 0) {
           // Promote first reserve to STARTER
