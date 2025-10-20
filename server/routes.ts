@@ -284,9 +284,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ ok: false, error: 'Il giocatore è già iscritto a questa partita' });
       }
 
+      const targetStatus = status || 'STARTER';
+      
+      // Validate starter cap if adding as STARTER
+      if (targetStatus === 'STARTER') {
+        const signups = await storage.getMatchSignups(matchId);
+        const currentStarters = signups.filter(s => s.status === 'STARTER').length;
+        const cap = startersCap(match.sport);
+        
+        if (currentStarters >= cap) {
+          return res.status(400).json({ 
+            ok: false, 
+            error: `Limite titolari raggiunto (${cap} totali, ${cap/2} per squadra)` 
+          });
+        }
+      }
+
       // Assign reserve team if status is RESERVE or NEXT (balance between LIGHT and DARK)
       let reserveTeam: 'LIGHT' | 'DARK' | undefined = undefined;
-      const targetStatus = status || 'STARTER';
       
       if (targetStatus === 'RESERVE' || targetStatus === 'NEXT') {
         const signups = await storage.getMatchSignups(matchId);
