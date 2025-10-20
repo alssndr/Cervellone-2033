@@ -262,8 +262,50 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     },
   });
 
+  // Generate MVP variant mutation
+  const generateMVPMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/admin/matches/${id}/generate-mvp`, {});
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Errore generazione MVP');
+      }
+      return data;
+    },
+    onSuccess: async (result) => {
+      await queryClient.refetchQueries({ queryKey: ['/api/admin/matches', id, 'lineups'] });
+      // Refetch ALL public view queries
+      await queryClient.refetchQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith(`/api/matches/${id}/public`);
+        }
+      });
+      toast({
+        title: 'MVP generato!',
+        description: 'Migliori giocatori selezionati e bilanciati',
+      });
+    },
+    onError: (error: Error) => {
+      // Reset selectedVariant on error to restore UI consistency
+      setSelectedVariant(null);
+      toast({
+        variant: 'destructive',
+        title: 'Errore generazione MVP',
+        description: error.message || 'Riprova',
+      });
+    },
+  });
+
   // Handle variant selection
   const handleVariantClick = async (variantId: string, variantIndex: number) => {
+    if (variantId === 'mvp') {
+      // Generate and apply MVP variant
+      setSelectedVariant('mvp');
+      await generateMVPMutation.mutateAsync();
+      return;
+    }
+    
     if (variantId === 'v4') {
       // Enter v4 manual mode - load existing v4 or initialize
       setSelectedVariant('v4');
@@ -592,6 +634,18 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                 data-testid="variant-selector-v4"
               >
                 v!
+              </button>
+              <button
+                onClick={() => handleVariantClick('mvp', -1)}
+                disabled={generateMVPMutation.isPending || applyVariantMutation.isPending}
+                className={`w-14 h-12 rounded-full flex items-center justify-center font-semibold text-xs transition-all ${
+                  selectedVariant === 'mvp'
+                    ? 'bg-amber-600 text-white shadow-lg'
+                    : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-amber-600'
+                } ${(generateMVPMutation.isPending || applyVariantMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                data-testid="variant-selector-mvp"
+              >
+                MVP
               </button>
             </div>
           </div>

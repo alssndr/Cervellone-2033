@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { normalizeE164, startersCap, type Sport, type User } from "@shared/schema";
 import { balanceGreedyLocal, type RatedPlayer } from "./services/balance";
 import { buildPublicMatchView } from "./services/matchView";
-import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant } from "./services/lineup";
+import { generateLineupVariants, applyLineupVersion, getLineupVariants, saveManualVariant, generateMVPVariant } from "./services/lineup";
 import { setupWebSocket, broadcastPlayerRegistered, broadcastVariantsRegenerated } from "./services/websocket";
 import jwt from "jsonwebtoken";
 
@@ -214,6 +214,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await saveManualVariant(id, lightIds, darkIds);
       
       // Auto-apply the created v4 variant
+      await applyLineupVersion(result.id);
+      
+      res.json({ ok: true, variantId: result.id, meanDelta: result.meanDelta });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Generate MVP variant (admin)
+  app.post('/api/admin/matches/:id/generate-mvp', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await generateMVPVariant(id);
+      
+      // Auto-apply the created MVP variant
       await applyLineupVersion(result.id);
       
       res.json({ ok: true, variantId: result.id, meanDelta: result.meanDelta });
