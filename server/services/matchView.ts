@@ -1,11 +1,14 @@
 import { storage } from '../storage';
-import { AXES, type MatchView } from '@shared/schema';
+import { AXES, type MatchView, normalizeE164 } from '@shared/schema';
 
 export async function buildPublicMatchView(matchId: string, phone: string): Promise<MatchView> {
   const match = await storage.getMatch(matchId);
   if (!match) {
     throw new Error('MATCH_NOT_FOUND');
   }
+
+  // Normalize phone for comparison
+  const normalizedPhone = normalizeE164(phone);
 
   const teams = await storage.getMatchTeams(matchId);
   const signups = await storage.getMatchSignups(matchId);
@@ -86,7 +89,7 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
     dark: await getAxisMeans(darkStarterAssignments.map(a => a.playerId)),
   };
 
-  const me = signups.find(s => s.phone === phone) || null;
+  const me = signups.find(s => s.phone === normalizedPhone) || null;
 
   return {
     match: {
