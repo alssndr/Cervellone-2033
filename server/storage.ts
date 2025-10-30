@@ -18,6 +18,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<InsertUser>): Promise<void>;
 
   // Players
   getPlayer(id: string): Promise<Player | undefined>;
@@ -34,17 +35,21 @@ export interface IStorage {
   getAllMatches(): Promise<Match[]>;
   createMatch(match: InsertMatch): Promise<Match>;
   updateMatchStatus(id: string, status: MatchStatus): Promise<void>;
+  updateMatch(id: string, updates: Partial<InsertMatch>): Promise<void>;
+  deleteMatch(id: string): Promise<void>;
 
   // Signups
   getSignup(matchId: string, playerId: string): Promise<Signup | undefined>;
   getSignupById(id: string): Promise<Signup | undefined>;
   getMatchSignups(matchId: string): Promise<Signup[]>;
   createSignup(signup: InsertSignup): Promise<Signup>;
-  updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide): Promise<void>;
+  updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide | null): Promise<void>;
+  deleteSignup(id: string): Promise<void>;
 
   // Teams
   getMatchTeams(matchId: string): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
+  deleteTeam(id: string): Promise<void>;
 
   // Team Assignments
   getTeamAssignments(teamId: string): Promise<TeamAssignment[]>;
@@ -58,10 +63,12 @@ export interface IStorage {
 
   // LineupVersions
   getLineupVersion(id: string): Promise<LineupVersion | undefined>;
+  getLineupVersions(matchId: string): Promise<LineupVersion[]>; // Alias for convenience
   getMatchLineupVersions(matchId: string): Promise<LineupVersion[]>;
   createLineupVersion(version: InsertLineupVersion): Promise<LineupVersion>;
   updateLineupRecommended(id: string, recommended: boolean): Promise<void>;
   deleteLineupVersion(id: string): Promise<void>;
+  deleteLineupVersions(matchId: string): Promise<void>; // Alias for convenience
   deleteMatchLineupVersions(matchId: string): Promise<void>;
 
   // LineupAssignments
@@ -72,6 +79,7 @@ export interface IStorage {
   // AuditLog
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   getAuditLogs(entity: string, entityId: string): Promise<AuditLog[]>;
+  deleteAuditLogsByAction(entity: string, entityId: string, action: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -200,12 +208,13 @@ export class MemStorage implements IStorage {
     return signup;
   }
 
-  async updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide): Promise<void> {
+  async updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide | null): Promise<void> {
     const signup = this.signups.get(id);
     if (signup) {
       signup.status = status;
       if (reserveTeam !== undefined) {
-        signup.reserveTeam = reserveTeam;
+        // If reserveTeam is null, clear it; otherwise set the value
+        signup.reserveTeam = reserveTeam === null ? undefined : reserveTeam;
       }
       this.signups.set(id, signup);
     }
@@ -332,6 +341,50 @@ export class MemStorage implements IStorage {
     return Array.from(this.auditLogs.values())
       .filter(log => log.entity === entity && log.entityId === entityId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async deleteAuditLogsByAction(entity: string, entityId: string, action: string): Promise<void> {
+    const logsToDelete = Array.from(this.auditLogs.entries())
+      .filter(([_, log]) => log.entity === entity && log.entityId === entityId && log.action === action)
+      .map(([id, _]) => id);
+    
+    logsToDelete.forEach(id => this.auditLogs.delete(id));
+  }
+
+  async updateMatch(id: string, updates: Partial<InsertMatch>): Promise<void> {
+    const match = this.matches.get(id);
+    if (match) {
+      Object.assign(match, updates);
+      this.matches.set(id, match);
+    }
+  }
+
+  async deleteMatch(id: string): Promise<void> {
+    this.matches.delete(id);
+  }
+
+  async deleteSignup(id: string): Promise<void> {
+    this.signups.delete(id);
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    this.teams.delete(id);
+  }
+
+  async getLineupVersions(matchId: string): Promise<LineupVersion[]> {
+    return this.getMatchLineupVersions(matchId);
+  }
+
+  async deleteLineupVersions(matchId: string): Promise<void> {
+    return this.deleteMatchLineupVersions(matchId);
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<void> {
+    const user = this.users.get(id);
+    if (user) {
+      Object.assign(user, updates);
+      this.users.set(id, user);
+    }
   }
 }
 

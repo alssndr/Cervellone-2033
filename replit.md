@@ -2,202 +2,7 @@
 
 ## Overview
 
-This application manages and balances sports teams for coaches and players. It enables administrators to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across six athletic attributes. The system supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual feedback on team balance through charts, field views, and statistics. The project aims to provide a robust, production-ready solution for sports team management with advanced features like real-time notifications, user role-based permissions, and a comprehensive lineup variant system.
-
-**Status**: ✅ Production Ready - Complete with user authentication, role-based permissions, and security hardening (October 20, 2025)
-
-## Test Credentials
-
-Per facilitare i test, sono disponibili due utenti permanenti nel database:
-
-- **Admin**: phone `12345`, password `12345`
-- **Utente normale**: phone `6789`, password `6789`
-
-Questi utenti vengono creati automaticamente al seed del database.
-
-## Recent Updates
-
-### Dynamic Dropdown UX - Hide Unavailable Options (October 20, 2025)
-
-Improved user experience by dynamically hiding unavailable status options instead of showing error messages:
-
-1. **Add Player Dialog**:
-   - When starter cap NOT reached: Shows all 3 options ("Titolare", "Riserva", "Prossimo")
-   - When starter cap reached: Shows ONLY 2 options ("Riserva", "Prossimo") - "Titolare" is hidden
-   - Default value automatically set to "Riserva" when cap is reached (was "Titolare")
-
-2. **Roster Status Dropdowns**:
-   - STARTER players: Always show "Titolare" option (they already occupy a slot)
-   - RESERVE/NEXT players when cap reached: "Titolare" option is hidden
-   - RESERVE/NEXT players when cap available: "Titolare" option is visible
-
-3. **User Benefits**:
-   - No more confusing error messages when trying to select "Titolare"
-   - Clear visual feedback on what actions are possible
-   - Prevents user frustration from selecting unavailable options
-
-**Technical Implementation**:
-- Frontend: Conditional rendering `{!isStartersLimitReached && <SelectItem value="STARTER">...}`
-- useEffect hook: Resets selectedStatus to "RESERVE" when dialog opens and cap is reached
-- File: client/src/pages/admin-match-detail.tsx
-
-**Tested**: E2E Playwright test verifies dropdown options dynamically show/hide based on starter capacity
-
-### PostgreSQL Migration + Data Persistence (October 20, 2025)
-
-Successfully migrated from in-memory storage to production-ready PostgreSQL database:
-
-1. **Database Schema Implementation**:
-   - Created complete Drizzle table definitions (pgTable) in shared/schema.ts
-   - All tables use VARCHAR UUIDs with `gen_random_uuid()` for primary keys
-   - Proper foreign key relationships with referential integrity
-   - Schema successfully applied to Neon PostgreSQL database
-
-2. **PostgresStorage Implementation**:
-   - Full implementation of IStorage interface using Drizzle ORM
-   - All 40+ methods migrated from MemStorage to database operations
-   - Maintains backward compatibility with existing application logic
-   - Transaction support for data integrity
-
-3. **Bug Fixes During Migration**:
-   - **BIGINT Seed Column**: Changed lineup_versions.seed from INTEGER to BIGINT to handle JavaScript timestamps (Date.now())
-   - **FK Constraint Resolution**: Modified deleteMatchLineupVersions to delete lineup_assignments before lineup_versions, preventing foreign key violations
-   - **Starter Cap Validation**: Added validation when admin manually adds players to prevent exceeding capacity (e.g., 6 for 3v3)
-
-4. **Data Persistence Benefits**:
-   - Test users (admin phone "12345", user phone "6789") persist across server restarts
-   - Match history and player data retained in database
-   - Automatic database seeding on first startup
-   - Production-ready data integrity and reliability
-
-**Technical Implementation**:
-- Database: Neon PostgreSQL (serverless)
-- ORM: Drizzle with @neondatabase/serverless driver
-- Migration: `npm run db:push --force` for schema updates
-- Seed: server/seed.ts creates test users and sample matches
-- Files: server/storage/postgres.ts, server/db/index.ts, shared/schema.ts
-
-**Tested**: End-to-end Playwright tests verify login, match creation, player addition, lineup generation, and starter cap enforcement without errors
-
-### Starter Cap Fixes + Reserve Team Assignment (October 20, 2025)
-
-Corrected starter capacity calculations and improved reserve team management:
-
-1. **Starter Cap Correction**:
-   - Fixed maxStarters calculation: now correctly PER TEAM instead of total
-   - 3v3: 3 starters per team (6 total), not 3 total
-   - 5v5: 5 starters per team (10 total)
-   - 8v8: 8 starters per team (16 total)
-   - 11v11: 11 starters per team (22 total)
-
-2. **Reserve Team Assignment Fix**:
-   - When STARTER changes to RESERVE/NEXT, now auto-assigns reserveTeam (LIGHT/DARK)
-   - Balances reserves between teams based on current counts
-   - Ensures immediate visibility in roster sections
-
-**Technical Implementation**:
-- Frontend: Corrected `maxStartersPerTeam` calculation in admin-match-detail.tsx
-- Backend: Auto-assignment of reserveTeam in server/routes.ts when status changes
-- Tested: Verified capacity enforcement and reserve visibility
-
-### Admin UX Improvements + Team Roster Management (October 20, 2025)
-
-Implemented comprehensive admin interface enhancements and robust team roster management:
-
-1. **Player Management Streamlining**:
-   - Renamed "Approva rating suggeriti" → "Approva" for conciseness
-   - Added "Modifica" button next to "Approva" for editing player data before approval
-   - Admin can now edit name, surname, and all 6 athletic ratings in edit dialog
-
-2. **Two-Column Team Roster View**:
-   - Match detail page reorganized with side-by-side "Chiari" and "Scuri" columns
-   - Each column displays three sections: Titolari, Riserve, Prossima Volta
-   - Every player has status dropdown (Titolare/Riserva/Prossimo) for inline status changes
-   - Visual separation with team colors and borders for clarity
-
-3. **Starter Cap Validation**:
-   - maxStarters calculated from sport type (3v3=3, 5v5=5, 8v8=8, 11v11=11)
-   - "Titolare" option disabled when starter cap reached, displays "Titolare (Completo)"
-   - Frontend prevents illegal promotions while showing current capacity
-   - Last starter protected: cannot change to RESERVE/NEXT if only 1 starter remains
-
-4. **Race Condition Protection**:
-   - Implemented in-memory mutex (`withMatchLock`) for signup status changes
-   - Serializes concurrent status modifications per match to prevent TOCTOU errors
-   - Validates starter cap atomically before allowing STARTER promotion
-   - Prevents removing last starter: returns 400 with error message
-   - Lock released in finally block to prevent deadlocks or memory leaks
-
-5. **ReserveTeam Assignment**:
-   - Admin-added RESERVE/NEXT players now auto-assigned to reserveTeam (LIGHT/DARK)
-   - Balances between teams based on current reserve counts
-   - Ensures all reserves visible in roster columns (previously hidden if undefined)
-
-**Technical Implementation**:
-- Mutex: `Map<matchId, Promise<void>>` with async lock acquisition/release
-- Validation: Pre-check + atomic update within mutex critical section
-- Frontend: `isStartersLimitReached` and `isLastStarter` computed props disable SelectItems
-- Backend: PATCH `/api/admin/signups/:signupId/status` with mutex + dual validation
-- Bug fixes: reserveTeam now assigned on manual player addition (server/routes.ts line 290-303)
-
-**Tested**: End-to-end Playwright tests verify concurrent status changes, cap enforcement, and UI feedback
-
-### Updated Player Positioning for 3v3 and 5v5 (October 20, 2025)
-
-Aggiornato il posizionamento dei giocatori nel campo visivo per formati calcio a 3 e calciotto:
-
-1. **Calcio a 3 (3v3)**: Formazione triangolare
-   - Portiere: posizione bassa laterale
-   - 1 attaccante: posizione alta centrale
-   - 1 centrocampista: posizione centrale
-2. **Calciotto (5v5)**: Formazione 2-2-1
-   - Portiere: posizione bassa laterale
-   - 2 difensori: posizione bassa centrale
-   - 2 centrocampisti: posizione centrale
-   - (posizioni estendibili per attaccanti se necessario)
-
-Le posizioni utilizzano coordinate assolute personalizzate per ogni formato sportivo nel componente FieldView.tsx.
-
-### Streamlined Invite Flow + Public Status Changes (October 20, 2025)
-
-Implemented fast-track player enrollment and public match interaction:
-
-1. **Phone-First Invite Flow**: `/invite/:token/signup` now collects phone number + status choice upfront
-2. **Smart Enrollment**: 
-   - `POST /api/invite/:token/check-phone` determines player state (enrolled, exists, new)
-   - Already enrolled → redirect to `/matches/:id` with phone stored
-   - Existing player → direct signup without profile form
-   - New player → show full registration form (name, surname, ratings)
-3. **Public Status Changes**: 
-   - `PATCH /api/matches/:id/change-status` allows enrolled players to change own status via phone verification
-   - Security: validates phone ownership through signup lookup
-   - Auto-promotes first RESERVE when STARTER downgrades (excludes current user from candidates)
-4. **Match View Enhancements**: 
-   - `/matches/:id` now displays status dropdown for enrolled users
-   - Refetch uses query predicate to capture all public view variants
-   - localStorage handoff ensures seamless phone persistence across redirects
-
-**Bug Fixes**:
-- Admin v4 swap now correctly invalidates all public view queries (fixed predicate matching)
-- Reserve promotion excludes signup initiating the change (prevents circular logic)
-
-### User Role-Based Permissions System (October 20, 2025)
-
-Implemented dual authentication with role-based access control:
-
-1. **User Authentication** (`/api/user/login`): Phone-based login for regular users, separate token management, auto-creates USER role
-2. **User Endpoints**: GET `/api/user/matches` (enrolled matches only), PATCH `/api/user/matches/:id/status` (change own status)
-3. **Reserve Promotion Logic**: When STARTER changes to RESERVE/NEXT, first existing RESERVE auto-promotes (excludes user who just changed)
-4. **Frontend Pages**: `/user/login`, `/user/matches`, `/user/matches/:id` with status dropdowns and warnings
-5. **Access Control**: Admin routes protected by `adminAuth`, user routes by `userAuth`
-
-**Security Hardening**:
-- `userAuth` enforces role='USER' only (prevents admin token reuse)
-- PATCH endpoint verifies authenticated user owns the signup
-- GET endpoint scopes to authenticated user's phone/player
-- Multiple ownership checks prevent cross-user data access
-
-**Technical**: Dual middleware in server/routes.ts, frontend pages in client/src/pages/user-*.tsx, bug fix at line 647 excludes current signup from promotion
+This application manages and balances sports teams, allowing administrators to create matches, invite players via tokenized links, and automatically balance teams based on player ratings across six athletic attributes. It supports various team formats (3v3, 5v5, 8v8, 11v11) and provides visual feedback on team balance through charts and field views. The system includes user authentication, role-based permissions, real-time notifications, and a comprehensive lineup variant system, aiming to be a robust, production-ready solution for sports team management.
 
 ## User Preferences
 
@@ -207,48 +12,31 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-**Framework**: React with TypeScript, using Vite.
-
+**Framework**: React with TypeScript and Vite.
 **UI Component System**: Radix UI primitives, shadcn/ui (New York style), and Tailwind CSS with custom design tokens.
-
 **State Management**: TanStack Query for server state, local React state for UI.
-
 **Routing**: Wouter.
-
-**Design System**: Material Design foundation, custom color palette optimized for outdoor/mobile viewing, with primary light mode and dark mode support. Emphasizes clarity, action-oriented workflows, and data legibility. Team colors for "Squadra Chiara" (#fc0fc0) and "Squadra Scura" (#0000ff) are consistently applied.
+**Design System**: Material Design foundation, custom color palette optimized for outdoor/mobile viewing, with primary light mode and dark mode support. Emphasizes clarity, action-oriented workflows, and data legibility. Consistent team colors for "Squadra Chiara" and "Squadra Scura".
 
 ### Backend Architecture
 
 **Server Framework**: Express.js with TypeScript.
-
 **API Design**: RESTful with JSON responses, cookie-based JWT authentication for admins, phone number-based user identification, and token-based invite system.
-
 **Core Services**:
-1.  **Team Balancing Algorithms**:
-    *   **GREEDY_LOCAL**: Greedy algorithm with local search, balancing across 6 athletic axes (defense, attack, speed, power, technique, shot) with weighted scoring (70% axis, 30% mean balance).
-    *   **RANDOM_SEEDED**: Randomized assignment with consistent seeding.
-2.  **Lineup Version System**: Generates multiple team configurations (default 3 GREEDY_LOCAL variants), scores them, and marks the best-balanced option (V1). Includes manual V4 mode.
-3.  **Match View Builder**: Constructs public match data.
-4.  **Storage Abstraction**: Interface-based for database flexibility.
-5.  **Audit System**: Tracks player-suggested ratings for admin review.
-6.  **WebSocket Real-Time Notifications**: Broadcasts `PLAYER_REGISTERED` and `VARIANTS_REGENERATED` events.
-
-**Admin Features**:
-*   Player rating editing.
-*   Manual player addition to matches.
-*   Manual player creation.
-*   Automatic variant regeneration and V1 application upon starter changes.
-*   User role-based permissions for admin and regular users, including specific user endpoints and status change logic with reserve promotion.
+*   **Team Balancing Algorithms**: `GREEDY_LOCAL` (greedy with local search balancing across 6 athletic attributes) and `RANDOM_SEEDED` (randomized assignment with consistent seeding).
+*   **Lineup Version System**: Generates multiple team configurations, scores them, and identifies the best-balanced option (V1), including manual V4 mode.
+*   **Match View Builder**: Constructs public match data.
+*   **Storage Abstraction**: Interface-based for database flexibility.
+*   **Audit System**: Tracks player-suggested ratings for admin review.
+*   **WebSocket Real-Time Notifications**: Broadcasts `PLAYER_REGISTERED` and `VARIANTS_REGENERATED` events.
+**Admin Features**: Player rating editing, manual player addition/creation, automatic variant regeneration upon starter changes, and user role-based permissions with specific user endpoints and status change logic including reserve promotion.
 
 ### Data Storage
 
 **ORM/Query Builder**: Drizzle ORM.
-
 **Database Provider**: Neon Database (serverless PostgreSQL).
-
-**Schema Design**: Includes tables for Users, Players, PlayerRatings, Matches, Signups, Teams, TeamAssignments, LineupVersion, LineupAssignment, and AuditLog.
-
-**Data Flow**: Admin creates match and invites players, players self-rate and sign up, admin reviews/approves ratings, system generates and applies balanced lineup variants, public view displays teams.
+**Schema Design**: Includes tables for Users, Players, PlayerRatings, Matches, Signups, Teams, TeamAssignments, LineupVersion, LineupAssignment, and AuditLog, using VARCHAR UUIDs for primary keys and proper foreign key relationships.
+**Data Flow**: Admin initiates matches and invites players, players self-rate and sign up, admin reviews/approves ratings, the system generates balanced lineup variants, and the public view displays teams.
 
 ## External Dependencies
 
@@ -264,6 +52,86 @@ Preferred communication style: Simple, everyday language.
 *   **Session Management**: `cookie-parser`.
 *   **UI Components**: Radix UI primitives (`@radix-ui/react-*`).
 
-**Development Tools**: TypeScript, ESBuild, Tailwind CSS, PostCSS.
-
 **API Security**: HTTP-only cookies for tokens, Bearer token support, environment-based JWT secret configuration.
+
+## Recent Updates
+
+### October 24, 2025
+
+**Starter Cap Validation Fix**: Fixed critical bug where users could exceed sport-specific starter limits when changing status from public match view:
+- Bug: Public endpoint `/api/matches/:id/change-status` was missing starter cap validation
+- Impact: Users could change their status to STARTER even when the limit was reached (e.g., 21 starters in 8v8 when max is 16)
+- Fix: Added cap validation matching admin endpoint behavior - returns 400 error "Posti titolari esauriti (X totali, Y per squadra)" when limit reached
+- All endpoints now consistently enforce sport caps: 3v3=6, 5v5=10, 8v8=16, 11v11=22 total starters
+- Tested: Verified 8v8 match correctly blocks 17th starter and allows adding as RESERVE instead
+
+**Field View Enhancements**: Enhanced player visualization on the field with rating badges and improved positioning:
+- Player rating badges: Colored circular badges (pink for Chiari, blue for Scuri) display average rating (1 decimal) above player names, calculated from 6 attributes (defense, attack, speed, power, technique, shot)
+- 3v3 positioning refined: Goalkeeper lateral-bottom (20%, 12%), Striker top-center (15%, 25%), Midfielder center (45%, 22%)
+- Center circle enlarged by 33% (from 96px to 128px) for better visibility
+- Robust NaN prevention: Rating calculation validates finite values before display
+
+**Placeholder Styling System**: Unified placeholder appearance across all forms:
+- Global placeholder color: #ff551a (distinctive orange-red)
+- Applied to admin login, user login, and match creation forms
+- Native HTML5 behavior: disappears on focus, reappears only when field is empty on blur
+- Uses `!important` to override Shadcn component defaults
+
+**Homepage Button Unification**: All three homepage buttons now share consistent styling:
+- Uniform appearance: text #0B4DFF (blue), background #F7F7F5 (off-white)
+- Hover state: colors invert (background becomes blue, text becomes off-white)
+- Applied to "Le mie partite", "Login Admin", and "Vedi Demo" buttons
+
+**Form Initial State Cleanup**: Improved UX by showing placeholders immediately:
+- Admin login: phone field starts empty (previously "+390000000000")
+- Match creation: location field starts empty (previously "Da definire")
+- User login: already had empty initial state
+
+**Cervellone™ Branding**: Added trademark symbol (™) after "Cervellone" throughout the application:
+- Homepage title: "Cervellone™ 2.0"
+- Homepage footer: "Cervellone™ 2.0 is a coffee break project by Studio Dude"
+- Establishes consistent brand identity across all user-facing text
+
+**Radar Chart Selection Fix**: Fixed interaction behavior for player comparison in radar charts:
+- Previous behavior: Hovering over a player would hide the selected player's stats
+- New behavior: Selected players remain visible during hover, allowing simultaneous comparison
+- Implementation: Changed logic from if/else (hover OR selected) to additive (selected AND hover)
+- Applied to both public match view and admin match detail pages
+- Improves UX by maintaining selected player context during exploration
+
+**Radar Chart Animation Control**: Improved visual stability when players are selected:
+- Animations disabled when any player is selected (click), preventing constant chart movement
+- Animations remain active when showing team averages (no selections)
+- Smoother UX: after selecting a player, the radar stays stable during hover interactions
+- Applied to both public match view and admin match detail pages
+
+### October 23, 2025
+
+**Stats Section Reorganization**: Redesigned match detail page layout to consolidate team information in a single "Stats" section with three equal columns:
+- Left: "Chiari" team roster (starters, reserves, next players with status management)
+- Center: "Radar" chart comparing team attributes
+- Right: "Scuri" team roster (starters, reserves, next players with status management)
+Replaced previous two-section layout ("Confronto Radar" + "Giocatori Schierati") for better information density and easier comparison.
+
+**Success Modal After Match Creation**: Improved post-creation UX with a modal dialog offering two immediate actions: "Copia Invito" (copies invite URL to clipboard) and "Gestisci" (navigates to match management page). Replaces previous auto-redirect behavior, giving admins control over next steps.
+
+**Centered Toast Notifications**: Moved toast notifications from top-right to top-center for better visibility and to avoid overlap with UI controls.
+
+**Dynamic Dropdown Options**: Status dropdowns now hide "Titolare" option when starter capacity is reached, preventing confusion. Default status automatically set to "Riserva" when cap is full.
+
+**Inline Player Addition Dropdown**: Streamlined admin UX for adding players to matches. Replaced icon button + modal dialog workflow with direct inline dropdown next to each available player. Dropdown labeled "Aggiungi come" with options "Titolare", "Riserva", "Prossimo". Selection immediately triggers addition - no confirmation step. Smart regeneration: only regenerates lineup variants when adding starters (reserves/next players skip regeneration for faster UX and to avoid errors when no starters exist). Reduces clicks from 4 steps to 1.
+
+**Interactive Radar Chart**: Enhanced radar visualization with hover and click interactions for player comparison:
+- Default state: Displays team average statistics (Squadra Chiara vs Squadra Scura)
+- Hover interaction: Temporarily shows individual player statistics, hiding team averages
+- Click interaction: Pins player statistics for persistent comparison, click again to deselect
+- Constraints: Maximum 2 players selected simultaneously, maximum 1 player per team
+- Visual feedback: Selected players highlighted with team-colored borders (pink for Chiari, blue for Scuri), hover shows lighter border
+- Status indicator: Shows "Hover attivo" or count of selected players below radar chart
+- Both admin and public views support this interactive comparison feature
+
+**Team Renaming**: Admins can now customize team names for each match. Pencil icon button next to match title opens a dialog with inputs for both team names ("Squadra Chiara" and "Squadra Scura"). Changes are saved immediately and reflected across all views. Default names are "Chiari" and "Scuri".
+
+**User Avatar Upload**: Users can upload profile pictures from their matches page. Avatar appears in a profile card at the top of the page with their name and phone number. Upload button overlays the avatar, supports images up to 2MB, shows preview during upload. New `/api/user/me` endpoint provides user data including avatar URL.
+
+**Match Deletion**: Admins can delete matches from the match detail page. "Elimina Partita" button in the header triggers confirmation dialog warning that all signups and team configurations will be removed. Upon deletion, admin is redirected to matches list with success toast. Backend endpoint removes all related data (signups, team assignments, lineup versions) and the match itself.

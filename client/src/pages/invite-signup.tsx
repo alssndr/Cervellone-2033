@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,6 @@ export default function InviteSignup({ params }: InviteSignupProps) {
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
-  const [choice, setChoice] = useState<'STARTER' | 'RESERVE' | 'NEXT'>('STARTER');
   const [ratings, setRatings] = useState({
     defense: 3,
     attack: 3,
@@ -36,8 +35,57 @@ export default function InviteSignup({ params }: InviteSignupProps) {
   });
   const [playerName, setPlayerName] = useState('');
 
+  const [choice, setChoice] = useState<'STARTER' | 'RESERVE' | 'NEXT'>('STARTER');
+
   const { data: inviteData, isLoading } = useQuery<{ ok: boolean; match?: any; error?: string }>({
     queryKey: [`/api/invite/${token}`],
+  });
+
+  // Set default choice based on starter availability when data loads
+  const startersAvailable = inviteData?.match?.startersLeft > 0;
+  
+  useEffect(() => {
+    if (inviteData?.match) {
+      // If no starters available and current choice is STARTER, switch to RESERVE
+      if (!startersAvailable && choice === 'STARTER') {
+        setChoice('RESERVE');
+      }
+    }
+  }, [inviteData, startersAvailable, choice]);
+
+  const changeStatusMutation = useMutation({
+    mutationFn: async (data: { matchId: string; phone: string; status: string }) => {
+      const response = await apiRequest('PATCH', `/api/matches/${data.matchId}/change-status`, { 
+        phone: data.phone, 
+        status: data.status 
+      });
+      return await response.json();
+    },
+    onSuccess: (result, variables) => {
+      if (result.ok) {
+        localStorage.setItem('demo_phone', phone);
+        toast({
+          title: 'Stato aggiornato',
+          description: 'Il tuo stato di partecipazione è stato modificato',
+        });
+        setTimeout(() => {
+          setLocation(`/matches/${variables.matchId}`);
+        }, 1500);
+      } else {
+        toast({
+          title: 'Errore',
+          description: result.error || 'Impossibile aggiornare lo stato',
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Errore di rete',
+        description: 'Impossibile comunicare con il server. Riprova.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const checkPhoneMutation = useMutation({
@@ -56,15 +104,25 @@ export default function InviteSignup({ params }: InviteSignupProps) {
       }
 
       if (result.alreadyEnrolled) {
-        // Already enrolled - save phone and redirect to match page
-        localStorage.setItem('demo_phone', phone);
-        toast({
-          title: 'Già iscritto',
-          description: 'Sei già iscritto a questa partita',
-        });
-        setTimeout(() => {
-          setLocation(`/matches/${result.matchId}`);
-        }, 1500);
+        // Check if user wants to change their status
+        if (result.currentStatus !== choice) {
+          // User selected a different status - update it
+          changeStatusMutation.mutate({
+            matchId: result.matchId,
+            phone: normalizeE164(phone),
+            status: choice,
+          });
+        } else {
+          // Same status - just redirect
+          localStorage.setItem('demo_phone', phone);
+          toast({
+            title: 'Già iscritto',
+            description: 'Sei già iscritto a questa partita',
+          });
+          setTimeout(() => {
+            setLocation(`/matches/${result.matchId}`);
+          }, 1500);
+        }
         return;
       }
 
@@ -240,16 +298,18 @@ export default function InviteSignup({ params }: InviteSignupProps) {
 
               <div className="space-y-2">
                 <Label>Disponibilità</Label>
-                <div className="grid grid-cols-3 gap-3">
-                  <Button
-                    type="button"
-                    variant={choice === 'STARTER' ? 'default' : 'outline'}
-                    onClick={() => setChoice('STARTER')}
-                    className="w-full"
-                    data-testid="button-choice-starter"
-                  >
-                    Titolare
-                  </Button>
+                <div className={`grid gap-3 ${startersAvailable ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {startersAvailable && (
+                    <Button
+                      type="button"
+                      variant={choice === 'STARTER' ? 'default' : 'outline'}
+                      onClick={() => setChoice('STARTER')}
+                      className="w-full"
+                      data-testid="button-choice-starter"
+                    >
+                      Titolare
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant={choice === 'RESERVE' ? 'default' : 'outline'}
@@ -269,15 +329,20 @@ export default function InviteSignup({ params }: InviteSignupProps) {
                     Prossima
                   </Button>
                 </div>
+                {!startersAvailable && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    ⚠️ Posti da titolare esauriti - disponibili solo riserva o prossima volta
+                  </p>
+                )}
               </div>
 
               <Button 
                 onClick={handlePhoneSubmit} 
                 className="w-full"
-                disabled={checkPhoneMutation.isPending || signupMutation.isPending}
+                disabled={checkPhoneMutation.isPending || signupMutation.isPending || changeStatusMutation.isPending}
                 data-testid="button-continue"
               >
-                {checkPhoneMutation.isPending || signupMutation.isPending ? 'Caricamento...' : 'Continua'}
+                {checkPhoneMutation.isPending || signupMutation.isPending || changeStatusMutation.isPending ? 'Caricamento...' : 'Continua'}
               </Button>
             </div>
           </div>

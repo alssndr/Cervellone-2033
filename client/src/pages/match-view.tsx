@@ -19,6 +19,60 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
   const [phone, setPhone] = useState('');
   const [inputPhone, setInputPhone] = useState('');
   const { toast } = useToast();
+  
+  // Interactive radar states
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+
+  // Player interaction handlers
+  const handlePlayerHover = (playerId: string) => {
+    setHoveredPlayerId(playerId);
+  };
+
+  const handlePlayerLeave = () => {
+    setHoveredPlayerId(null);
+  };
+
+  const handlePlayerClick = (playerId: string, teamAssignment: 'LIGHT' | 'DARK') => {
+    setSelectedPlayerIds(prev => {
+      // If already selected, deselect
+      if (prev.includes(playerId)) {
+        return prev.filter(id => id !== playerId);
+      }
+
+      // Check in all player lists to find same team selections
+      const allPlayers = data?.view ? [
+        ...data.view.starters.light.map(p => ({ ...p, team: 'LIGHT' })),
+        ...data.view.starters.dark.map(p => ({ ...p, team: 'DARK' })),
+        ...data.view.reserves.light.map(p => ({ ...p, team: 'LIGHT' })),
+        ...data.view.reserves.dark.map(p => ({ ...p, team: 'DARK' })),
+      ] : [];
+
+      // Find players from same team that are already selected
+      const sameTeamPlayerIds = prev.filter(id => {
+        const player = allPlayers.find(p => p.id === id);
+        return player?.team === teamAssignment;
+      });
+
+      // If there's a player from same team selected, remove it and add the new one
+      if (sameTeamPlayerIds.length > 0) {
+        return [...prev.filter(id => !sameTeamPlayerIds.includes(id)), playerId];
+      }
+
+      // Check max 2 players total
+      if (prev.length >= 2) {
+        toast({
+          title: 'Limite raggiunto',
+          description: 'Puoi confrontare massimo 2 giocatori alla volta',
+          variant: 'destructive',
+        });
+        return prev;
+      }
+
+      // Add player
+      return [...prev, playerId];
+    });
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('demo_phone');
@@ -131,12 +185,71 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
   }
 
   const { match, me, starters, reserves, radar } = data.view;
+  const next = (data.view as any).next; // Optional: next players if available
+
+  const getSportLabel = (sport: string) => {
+    switch (sport) {
+      case 'THREE': return '3v3';
+      case 'FIVE': return '5v5';
+      case 'EIGHT': return '8v8';
+      case 'ELEVEN': return '11v11';
+      default: return sport;
+    }
+  };
+
+  // Calculate radar datasets based on hover and selections
+  const radarAdditionalDatasets = (() => {
+    const datasets: Array<{
+      data: Record<string, number>;
+      label: string;
+      color: string;
+      visible?: boolean;
+    }> = [];
+
+    // Determine which players to show
+    const playersToShow: string[] = [];
+    
+    // Always show selected players
+    if (selectedPlayerIds.length > 0) {
+      playersToShow.push(...selectedPlayerIds);
+    }
+    
+    // Additionally show hovered player if not already selected
+    if (hoveredPlayerId && !playersToShow.includes(hoveredPlayerId)) {
+      playersToShow.push(hoveredPlayerId);
+    }
+
+    // Build datasets for each player to show
+    playersToShow.forEach(playerId => {
+      // Find player in all lists (starters + reserves)
+      const allPlayers = [
+        ...starters.light.map((p: any) => ({ ...p, team: 'LIGHT' })),
+        ...starters.dark.map((p: any) => ({ ...p, team: 'DARK' })),
+        ...reserves.light.map((p: any) => ({ ...p, team: 'LIGHT' })),
+        ...reserves.dark.map((p: any) => ({ ...p, team: 'DARK' })),
+      ];
+      
+      const player = allPlayers.find((p: any) => p.id === playerId);
+      if (player && player.ratings) {
+        const color = player.team === 'LIGHT' ? '#fc0fc0' : '#0000ff';
+        
+        datasets.push({
+          data: player.ratings,
+          label: player.name,
+          color,
+          visible: true,
+        });
+      }
+    });
+
+    return datasets;
+  })();
 
   return (
     <div className="min-h-screen bg-paper">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-ink mb-2" data-testid="text-match-title">
@@ -153,7 +266,7 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
                 </div>
                 <div className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  {match.sport}
+                  {getSportLabel(match.sport)}
                 </div>
               </div>
             </div>
@@ -201,29 +314,234 @@ export default function MatchViewPage({ params }: MatchViewPageProps) {
           />
         </div>
 
-        {/* Radar Chart */}
+        {/* Stats Section - Three Columns (Read-only) */}
         <div className="bg-white rounded-xl border border-gray-200 mb-8">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Confronto Radar</h2>
+            <h2 className="text-lg font-semibold">Stats</h2>
           </div>
-          <RadarChart
-            lightData={radar.light}
-            darkData={radar.dark}
-            lightLabel={match.teamNameLight}
-            darkLabel={match.teamNameDark}
-          />
-        </div>
+          <div className="grid grid-cols-3 gap-6 p-6">
+            {/* Squadra Chiara */}
+            <div className="border-2 border-pinkTeam/30 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
+                {match.teamNameLight}
+              </h3>
+              
+              {/* Titolari */}
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Titolari</h4>
+                <div className="space-y-2">
+                  {starters.light.map((player) => {
+                    const isSelected = selectedPlayerIds.includes(player.id);
+                    const isHovered = hoveredPlayerId === player.id;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                            : isHovered
+                            ? 'border-pinkTeam/50 border-2'
+                            : 'border-gray-200'
+                        }`}
+                        data-testid={`light-starter-${player.id}`}
+                        onMouseEnter={() => handlePlayerHover(player.id)}
+                        onMouseLeave={handlePlayerLeave}
+                        onClick={() => handlePlayerClick(player.id, 'LIGHT')}
+                      >
+                        <p className="font-medium text-sm">{player.name}</p>
+                      </div>
+                    );
+                  })}
+                  {starters.light.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">Nessun titolare</p>
+                  )}
+                </div>
+              </div>
 
-        {/* Team Stats */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <TeamPanel 
-            teamLabel={`${match.teamNameLight} — Medie`}
-            axisMeans={radar.light}
-          />
-          <TeamPanel 
-            teamLabel={`${match.teamNameDark} — Medie`}
-            axisMeans={radar.dark}
-          />
+              {/* Riserve */}
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Riserve</h4>
+                <div className="space-y-2">
+                  {reserves.light.map((player) => {
+                    const isSelected = selectedPlayerIds.includes(player.id);
+                    const isHovered = hoveredPlayerId === player.id;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                            : isHovered
+                            ? 'border-pinkTeam/50 border-2'
+                            : 'border-gray-200'
+                        }`}
+                        data-testid={`light-reserve-${player.id}`}
+                        onMouseEnter={() => handlePlayerHover(player.id)}
+                        onMouseLeave={handlePlayerLeave}
+                        onClick={() => handlePlayerClick(player.id, 'LIGHT')}
+                      >
+                        <p className="font-medium text-sm">{player.name}</p>
+                      </div>
+                    );
+                  })}
+                  {reserves.light.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">Nessuna riserva</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Prossima volta */}
+              {next && next.light && next.light.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
+                  <div className="space-y-2">
+                    {next.light.map((player: any) => {
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
+                      return (
+                        <div
+                          key={player.id}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                              : isHovered
+                              ? 'border-pinkTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
+                          data-testid={`light-next-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'LIGHT')}
+                        >
+                          <p className="font-medium text-sm">{player.name}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Radar Chart - Center Column */}
+            <div className="flex flex-col items-center justify-center">
+              <h3 className="text-lg font-semibold mb-4">Radar</h3>
+              <RadarChart
+                lightData={radar.light}
+                darkData={radar.dark}
+                lightLabel={match.teamNameLight}
+                darkLabel={match.teamNameDark}
+                additionalDatasets={radarAdditionalDatasets}
+                hasSelections={selectedPlayerIds.length > 0}
+              />
+              {radarAdditionalDatasets.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {hoveredPlayerId ? 'Hover attivo' : `${selectedPlayerIds.length} giocator${selectedPlayerIds.length === 1 ? 'e' : 'i'} selezionat${selectedPlayerIds.length === 1 ? 'o' : 'i'}`}
+                </p>
+              )}
+            </div>
+
+            {/* Squadra Scura */}
+            <div className="border-2 border-blueTeam/30 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#0000ff' }}>
+                {match.teamNameDark}
+              </h3>
+              
+              {/* Titolari */}
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Titolari</h4>
+                <div className="space-y-2">
+                  {starters.dark.map((player) => {
+                    const isSelected = selectedPlayerIds.includes(player.id);
+                    const isHovered = hoveredPlayerId === player.id;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                            : isHovered
+                            ? 'border-blueTeam/50 border-2'
+                            : 'border-gray-200'
+                        }`}
+                        data-testid={`dark-starter-${player.id}`}
+                        onMouseEnter={() => handlePlayerHover(player.id)}
+                        onMouseLeave={handlePlayerLeave}
+                        onClick={() => handlePlayerClick(player.id, 'DARK')}
+                      >
+                        <p className="font-medium text-sm">{player.name}</p>
+                      </div>
+                    );
+                  })}
+                  {starters.dark.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">Nessun titolare</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Riserve */}
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Riserve</h4>
+                <div className="space-y-2">
+                  {reserves.dark.map((player) => {
+                    const isSelected = selectedPlayerIds.includes(player.id);
+                    const isHovered = hoveredPlayerId === player.id;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                            : isHovered
+                            ? 'border-blueTeam/50 border-2'
+                            : 'border-gray-200'
+                        }`}
+                        data-testid={`dark-reserve-${player.id}`}
+                        onMouseEnter={() => handlePlayerHover(player.id)}
+                        onMouseLeave={handlePlayerLeave}
+                        onClick={() => handlePlayerClick(player.id, 'DARK')}
+                      >
+                        <p className="font-medium text-sm">{player.name}</p>
+                      </div>
+                    );
+                  })}
+                  {reserves.dark.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">Nessuna riserva</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Prossima volta */}
+              {next && next.dark && next.dark.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
+                  <div className="space-y-2">
+                    {next.dark.map((player: any) => {
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
+                      return (
+                        <div
+                          key={player.id}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                              : isHovered
+                              ? 'border-blueTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
+                          data-testid={`dark-next-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'DARK')}
+                        >
+                          <p className="font-medium text-sm">{player.name}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

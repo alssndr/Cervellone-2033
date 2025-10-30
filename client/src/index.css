@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Placeholder styling */
+input::placeholder,
+textarea::placeholder {
+  color: #ff551a !important;
+  opacity: 1 !important;
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);

@@ -33,6 +33,10 @@ export class PostgresStorage implements IStorage {
     return result[0] as User;
   }
 
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<void> {
+    await db.update(schema.users).set(updates).where(eq(schema.users.id, id));
+  }
+
   // Players
   async getPlayer(id: string): Promise<Player | undefined> {
     const result = await db.select().from(schema.players).where(eq(schema.players.id, id)).limit(1);
@@ -103,6 +107,14 @@ export class PostgresStorage implements IStorage {
     await db.update(schema.matches).set({ status }).where(eq(schema.matches.id, id));
   }
 
+  async updateMatch(id: string, updates: Partial<InsertMatch>): Promise<void> {
+    await db.update(schema.matches).set(updates).where(eq(schema.matches.id, id));
+  }
+
+  async deleteMatch(id: string): Promise<void> {
+    await db.delete(schema.matches).where(eq(schema.matches.id, id));
+  }
+
   // Signups
   async getSignup(matchId: string, playerId: string): Promise<Signup | undefined> {
     const result = await db.select().from(schema.signups)
@@ -129,12 +141,17 @@ export class PostgresStorage implements IStorage {
     return result[0] as Signup;
   }
 
-  async updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide): Promise<void> {
+  async updateSignup(id: string, status: SignupStatus, reserveTeam?: TeamSide | null): Promise<void> {
     const updates: any = { status };
     if (reserveTeam !== undefined) {
+      // If reserveTeam is null, explicitly clear it in DB; otherwise set the value
       updates.reserveTeam = reserveTeam;
     }
     await db.update(schema.signups).set(updates).where(eq(schema.signups.id, id));
+  }
+
+  async deleteSignup(id: string): Promise<void> {
+    await db.delete(schema.signups).where(eq(schema.signups.id, id));
   }
 
   // Teams
@@ -147,6 +164,10 @@ export class PostgresStorage implements IStorage {
   async createTeam(team: InsertTeam): Promise<Team> {
     const result = await db.insert(schema.teams).values(team).returning();
     return result[0] as Team;
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    await db.delete(schema.teams).where(eq(schema.teams.id, id));
   }
 
   // Team Assignments
@@ -185,6 +206,10 @@ export class PostgresStorage implements IStorage {
     return result[0] as LineupVersion | undefined;
   }
 
+  async getLineupVersions(matchId: string): Promise<LineupVersion[]> {
+    return this.getMatchLineupVersions(matchId);
+  }
+
   async getMatchLineupVersions(matchId: string): Promise<LineupVersion[]> {
     const result = await db.select().from(schema.lineupVersions)
       .where(eq(schema.lineupVersions.matchId, matchId));
@@ -202,6 +227,10 @@ export class PostgresStorage implements IStorage {
 
   async deleteLineupVersion(id: string): Promise<void> {
     await db.delete(schema.lineupVersions).where(eq(schema.lineupVersions.id, id));
+  }
+
+  async deleteLineupVersions(matchId: string): Promise<void> {
+    return this.deleteMatchLineupVersions(matchId);
   }
 
   async deleteMatchLineupVersions(matchId: string): Promise<void> {
@@ -249,5 +278,14 @@ export class PostgresStorage implements IStorage {
         eq(schema.auditLogs.entityId, entityId)
       ));
     return result as AuditLog[];
+  }
+
+  async deleteAuditLogsByAction(entity: string, entityId: string, action: string): Promise<void> {
+    await db.delete(schema.auditLogs)
+      .where(and(
+        eq(schema.auditLogs.entity, entity),
+        eq(schema.auditLogs.entityId, entityId),
+        eq(schema.auditLogs.action, action)
+      ));
   }
 }

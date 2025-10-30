@@ -25,6 +25,7 @@ export const insertUserSchema = z.object({
   surname: z.string().optional(),
   role: Role.default('USER'),
   password: z.string().optional(),
+  avatarUrl: z.string().optional(),
 });
 
 export const userSchema = insertUserSchema.extend({
@@ -42,6 +43,7 @@ export const insertPlayerSchema = z.object({
   surname: z.string(),
   phone: z.string(),
   notes: z.string().optional(),
+  avatarUrl: z.string().optional(),
 });
 
 export const playerSchema = insertPlayerSchema.extend({
@@ -228,6 +230,10 @@ export const matchViewSchema = z.object({
     light: z.array(z.object({ id: z.string(), name: z.string() })),
     dark: z.array(z.object({ id: z.string(), name: z.string() })),
   }),
+  next: z.object({
+    light: z.array(z.object({ id: z.string(), name: z.string() })),
+    dark: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
   radar: z.object({
     light: z.record(z.number()),
     dark: z.record(z.number()),
@@ -278,6 +284,7 @@ export const users = pgTable('users', {
   surname: varchar('surname', { length: 255 }),
   role: varchar('role', { length: 20 }).notNull().default('USER'),
   password: varchar('password', { length: 255 }),
+  avatarUrl: varchar('avatar_url', { length: 500 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -288,6 +295,7 @@ export const players = pgTable('players', {
   surname: varchar('surname', { length: 255 }).notNull(),
   phone: varchar('phone', { length: 50 }).notNull().unique(),
   notes: text('notes'),
+  avatarUrl: varchar('avatar_url', { length: 500 }),
 });
 
 export const playerRatings = pgTable('player_ratings', {

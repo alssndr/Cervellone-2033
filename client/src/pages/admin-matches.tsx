@@ -5,17 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { type Sport, type Match } from '@shared/schema';
-import { Calendar, MapPin, Users, Plus, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Users, Plus, ExternalLink, Copy, Settings } from 'lucide-react';
 
 export default function AdminMatches() {
   const { toast } = useToast();
   const [, setLocation_nav] = useLocation();
   const [sport, setSport] = useState<Sport>('THREE');
   const [dateTime, setDateTime] = useState('');
-  const [location, setLocation] = useState('Da definire');
+  const [location, setLocation] = useState('');
+  const [createdMatch, setCreatedMatch] = useState<{ matchId: string; inviteUrl: string } | null>(null);
 
   // Set default datetime to 24 hours from now
   useEffect(() => {
@@ -35,16 +37,13 @@ export default function AdminMatches() {
       return await response.json();
     },
     onSuccess: (result) => {
-      if (result.ok && result.matchId) {
+      if (result.ok && result.matchId && result.inviteUrl) {
         queryClient.invalidateQueries({ queryKey: ['/api/admin/matches'] });
-        toast({
-          title: 'Partita creata!',
-          description: `Reindirizzamento alla gestione partita...`,
+        // Show modal with created match info
+        setCreatedMatch({
+          matchId: result.matchId,
+          inviteUrl: result.inviteUrl,
         });
-        // Auto-redirect to match detail page
-        setTimeout(() => {
-          setLocation_nav(`/admin/matches/${result.matchId}`);
-        }, 500);
       } else {
         toast({
           title: 'Errore',
@@ -240,6 +239,53 @@ export default function AdminMatches() {
           )}
         </div>
       </div>
+
+      {/* Success Modal after creating match */}
+      <Dialog open={!!createdMatch} onOpenChange={(open) => !open && setCreatedMatch(null)}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-match-created">
+          <DialogHeader>
+            <DialogTitle>✅ Partita creata con successo!</DialogTitle>
+            <DialogDescription>
+              La partita è stata creata. Puoi copiare il link di invito per i giocatori o gestire la partita.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-3 py-4">
+            <Button
+              variant="default"
+              onClick={() => {
+                if (createdMatch?.inviteUrl) {
+                  navigator.clipboard.writeText(createdMatch.inviteUrl);
+                  toast({
+                    title: 'Link copiato!',
+                    description: 'Invito copiato negli appunti. Condividilo con i giocatori!',
+                  });
+                }
+              }}
+              className="w-full"
+              data-testid="button-copy-invite-modal"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copia Invito
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (createdMatch?.matchId) {
+                  setCreatedMatch(null);
+                  setLocation_nav(`/admin/matches/${createdMatch.matchId}`);
+                }
+              }}
+              className="w-full"
+              data-testid="button-manage-modal"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Gestisci
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,7 +9,7 @@ export default function Home() {
         {/* Hero Section */}
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-ink mb-4" data-testid="text-title">
-            Cervellone 2.0
+            Cervellone™ 2.0
           </h1>
           <p className="text-xl text-inkMuted max-w-2xl mx-auto">
             Sofisticato sistema per la gestione del calciotto settimanale
@@ -53,7 +53,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <Link href="/user/login">
             <button
-              className="px-6 py-3 bg-blueTeam text-white rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
+              className="px-6 py-3 bg-paper text-blueTeam rounded-lg font-medium transition-all hover:bg-blueTeam hover:text-paper"
               data-testid="button-user-login"
             >
               Le mie partite
@@ -62,7 +62,7 @@ export default function Home() {
 
           <Link href="/admin/login">
             <button
-              className="px-6 py-3 border-2 border-blueTeam text-blueTeam rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
+              className="px-6 py-3 bg-paper text-blueTeam rounded-lg font-medium transition-all hover:bg-blueTeam hover:text-paper"
               data-testid="button-admin-login"
             >
               Login Admin
@@ -71,7 +71,7 @@ export default function Home() {
           
           <Link href="/demo">
             <button
-              className="px-6 py-3 border-2 border-gray-300 text-ink rounded-lg font-medium hover-elevate active-elevate-2 transition-all"
+              className="px-6 py-3 bg-paper text-blueTeam rounded-lg font-medium transition-all hover:bg-blueTeam hover:text-paper"
               data-testid="button-demo"
             >
               Vedi Demo
@@ -89,7 +89,7 @@ export default function Home() {
               data-testid="img-logo"
             />
           </div>
-          <p className="text-sm text-inkMuted">Cervello 2.0 is a coffee break project by Studio Dude</p>
+          <p className="text-sm text-inkMuted">Cervellone™ 2.0 is a coffee break project by Studio Dude</p>
         </div>
       </div>
     </div>

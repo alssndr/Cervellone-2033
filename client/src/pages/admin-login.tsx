@@ -9,7 +9,7 @@ import { apiRequest } from '@/lib/queryClient';
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [phone, setPhone] = useState('+390000000000');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {

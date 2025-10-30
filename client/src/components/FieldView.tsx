@@ -3,6 +3,14 @@ import { type Sport } from '@shared/schema';
 interface Player {
   id: string;
   name: string;
+  ratings?: {
+    defense: number;
+    attack: number;
+    speed: number;
+    power: number;
+    technique: number;
+    shot: number;
+  } | null;
 }
 
 interface FieldViewProps {
@@ -36,21 +44,31 @@ export default function FieldView({
     }
   };
 
+  const calculateAverage = (ratings: Player['ratings']): number | null => {
+    if (!ratings) return null;
+    const values = [ratings.defense, ratings.attack, ratings.speed, ratings.power, ratings.technique, ratings.shot];
+    const validValues = values.filter(v => typeof v === 'number' && isFinite(v));
+    if (validValues.length === 0) return null;
+    const sum = validValues.reduce((acc, val) => acc + val, 0);
+    const average = sum / validValues.length;
+    return isFinite(average) ? Math.round(average * 10) / 10 : null;
+  };
+
   const getPlayerPositions = (sport: Sport, team: 'light' | 'dark', playerCount: number): Position[] => {
     if (sport === 'THREE') {
-      // 3v3: Formazione triangolare
-      // Portiere in basso, 1 giocatore in alto, 1 giocatore al centro
+      // 3v3: Formazione come nello screenshot
+      // Portiere laterale, attaccante alto centrale, centrocampista al centro
       if (team === 'light') {
         return [
-          { bottom: '15%', left: '8%' },      // Portiere
-          { top: '20%', left: '20%' },         // Attaccante
-          { top: '45%', left: '20%' },         // Centrocampista
+          { bottom: '20%', left: '12%' },     // Portiere (sinistra)
+          { top: '15%', left: '25%' },        // Attaccante (alto centrale)
+          { top: '45%', left: '22%' },        // Centrocampista (centro)
         ];
       } else {
         return [
-          { bottom: '15%', right: '8%' },     // Portiere
-          { top: '20%', right: '20%' },        // Attaccante
-          { top: '45%', right: '20%' },        // Centrocampista
+          { bottom: '20%', right: '12%' },    // Portiere (destra)
+          { top: '15%', right: '25%' },       // Attaccante (alto centrale)
+          { top: '45%', right: '22%' },       // Centrocampista (centro)
         ];
       }
     } else if (sport === 'FIVE') {
@@ -139,7 +157,7 @@ export default function FieldView({
     <div className="space-y-6">
       <div className="rounded-xl border border-card-border bg-card p-6" data-testid="field-view">
         {/* Campo da gioco */}
-        <div className="relative bg-green-700 rounded-lg p-8 min-h-[500px]" style={{
+        <div className="relative bg-green-700 rounded-lg p-8 min-h-[600px]" style={{
           backgroundImage: `repeating-linear-gradient(
             0deg,
             rgba(255,255,255,0.1) 0px,
@@ -158,23 +176,34 @@ export default function FieldView({
           {/* Linea centrale */}
           <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/30" />
           
-          {/* Cerchio centrale */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border-2 border-white/30 rounded-full" />
+          {/* Cerchio centrale (30% più grande: da 96px a ~125px) */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white/30 rounded-full" />
           
           {/* Squadra Chiara (sinistra) */}
           {lightStarters.map((player, idx) => {
             const position = lightPositions[idx] || { top: '50%', left: '8%' };
+            const average = calculateAverage(player.ratings);
             return (
               <div
                 key={player.id}
-                className="absolute backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap -translate-x-1/2 -translate-y-1/2"
-                style={{ 
-                  backgroundColor: 'rgba(252, 15, 192, 0.9)',
-                  ...position
-                }}
+                className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+                style={position}
                 data-testid={`player-light-${player.id}`}
               >
-                {player.name || `Giocatore ${idx + 1}`}
+                {/* Pallino con media */}
+                {average !== null && (
+                  <div 
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm mb-1 shadow-lg"
+                    style={{ backgroundColor: 'rgba(252, 15, 192, 0.95)' }}
+                    data-testid={`rating-light-${player.id}`}
+                  >
+                    {average.toFixed(1)}
+                  </div>
+                )}
+                {/* Nome giocatore */}
+                <div className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap bg-black/60">
+                  {player.name || `Giocatore ${idx + 1}`}
+                </div>
               </div>
             );
           })}
@@ -182,17 +211,28 @@ export default function FieldView({
           {/* Squadra Scura (destra) */}
           {darkStarters.map((player, idx) => {
             const position = darkPositions[idx] || { top: '50%', right: '8%' };
+            const average = calculateAverage(player.ratings);
             return (
               <div
                 key={player.id}
-                className="absolute backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap -translate-x-1/2 -translate-y-1/2"
-                style={{ 
-                  backgroundColor: 'rgba(0, 0, 255, 0.9)',
-                  ...position
-                }}
+                className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+                style={position}
                 data-testid={`player-dark-${player.id}`}
               >
-                {player.name || `Giocatore ${idx + 1}`}
+                {/* Pallino con media */}
+                {average !== null && (
+                  <div 
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm mb-1 shadow-lg"
+                    style={{ backgroundColor: 'rgba(0, 0, 255, 0.95)' }}
+                    data-testid={`rating-dark-${player.id}`}
+                  >
+                    {average.toFixed(1)}
+                  </div>
+                )}
+                {/* Nome giocatore */}
+                <div className="backdrop-blur-sm px-3 py-2 rounded-lg text-xs font-medium text-white shadow-lg whitespace-nowrap bg-black/60">
+                  {player.name || `Giocatore ${idx + 1}`}
+                </div>
               </div>
             );
           })}

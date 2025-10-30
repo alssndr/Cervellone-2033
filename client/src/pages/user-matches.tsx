@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, MapPinIcon, UserIcon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { CalendarIcon, MapPinIcon, UserIcon, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -28,12 +32,88 @@ const statusColors: Record<string, 'default' | 'secondary' | 'outline'> = {
 
 export default function UserMatches() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
   const { data, isLoading, error } = useQuery({
     queryKey: ['/api/user/matches'],
   });
 
+  const { data: userData } = useQuery({
+    queryKey: ['/api/user/me'],
+  });
+
   const matches = data?.matches || [];
+  const user = userData?.user || null;
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('user_token')}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload fallito');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/user/me'] });
+      setPreviewUrl(null);
+      toast({
+        title: 'Avatar aggiornato!',
+        description: 'La tua foto profilo è stata caricata',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile caricare l\'avatar',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Errore',
+        description: 'Seleziona un\'immagine valida',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: 'Errore',
+        description: 'L\'immagine deve essere inferiore a 2MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    uploadAvatarMutation.mutate(file);
+  };
 
   if (isLoading) {
     return (
@@ -66,6 +146,50 @@ export default function UserMatches() {
   return (
     <div className="min-h-screen bg-paper">
       <div className="max-w-4xl mx-auto p-4 py-8">
+        {/* Profile Section */}
+        {user && (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Avatar className="w-20 h-20">
+                    <AvatarImage src={previewUrl || user.avatarUrl || undefined} />
+                    <AvatarFallback className="text-2xl">
+                      {user.name?.[0]?.toUpperCase() || user.phone?.[0] || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute bottom-0 right-0 h-7 w-7 rounded-full"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadAvatarMutation.isPending}
+                    data-testid="button-upload-avatar"
+                  >
+                    <Upload className="w-3 h-3" />
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    data-testid="input-avatar-file"
+                  />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-ink" data-testid="text-user-name">
+                    {user.name || user.phone}
+                  </h2>
+                  <p className="text-sm text-inkMuted" data-testid="text-user-phone">
+                    {user.phone}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-ink mb-2" data-testid="text-page-title">

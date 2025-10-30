@@ -16,6 +16,7 @@ export default {
         ink: "#121212",
         inkMuted: "#1A1A1A",
         blueTeam: "#0B4DFF",
+        pinkTeam: "#fc0fc0",
         lightTeam: "#FFFFFF",
         
         // Flat / base colors (regular buttons)

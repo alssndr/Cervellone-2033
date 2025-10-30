@@ -26,9 +26,11 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
   const lightStarters = await Promise.all(
     lightStarterAssignments.map(async a => {
       const player = await storage.getPlayer(a.playerId);
+      const ratings = await storage.getPlayerRatings(a.playerId);
       return {
         id: a.playerId,
         name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
       };
     })
   );
@@ -36,9 +38,11 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
   const darkStarters = await Promise.all(
     darkStarterAssignments.map(async a => {
       const player = await storage.getPlayer(a.playerId);
+      const ratings = await storage.getPlayerRatings(a.playerId);
       return {
         id: a.playerId,
         name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
       };
     })
   );
@@ -50,9 +54,11 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
   const reservesLight = await Promise.all(
     reservesLightSignups.map(async s => {
       const player = await storage.getPlayer(s.playerId);
+      const ratings = await storage.getPlayerRatings(s.playerId);
       return {
         id: s.playerId,
         name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
       };
     })
   );
@@ -60,9 +66,39 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
   const reservesDark = await Promise.all(
     reservesDarkSignups.map(async s => {
       const player = await storage.getPlayer(s.playerId);
+      const ratings = await storage.getPlayerRatings(s.playerId);
       return {
         id: s.playerId,
         name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
+      };
+    })
+  );
+
+  // Get next time players
+  const nextLightSignups = signups.filter(s => s.status === 'NEXT' && s.reserveTeam === 'LIGHT');
+  const nextDarkSignups = signups.filter(s => s.status === 'NEXT' && s.reserveTeam === 'DARK');
+
+  const nextLight = await Promise.all(
+    nextLightSignups.map(async s => {
+      const player = await storage.getPlayer(s.playerId);
+      const ratings = await storage.getPlayerRatings(s.playerId);
+      return {
+        id: s.playerId,
+        name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
+      };
+    })
+  );
+
+  const nextDark = await Promise.all(
+    nextDarkSignups.map(async s => {
+      const player = await storage.getPlayer(s.playerId);
+      const ratings = await storage.getPlayerRatings(s.playerId);
+      return {
+        id: s.playerId,
+        name: player ? `${player.name} ${player.surname}`.trim() : 'Giocatore',
+        ratings: ratings || null,
       };
     })
   );
@@ -109,6 +145,10 @@ export async function buildPublicMatchView(matchId: string, phone: string): Prom
     reserves: {
       light: reservesLight,
       dark: reservesDark,
+    },
+    next: {
+      light: nextLight,
+      dark: nextDark,
     },
     radar,
   };

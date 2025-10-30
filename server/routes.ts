@@ -252,6 +252,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { ratings } = req.body;
       await storage.updatePlayerRatings(id, ratings);
+      
+      // Remove the suggestion from audit log (mark as approved)
+      await storage.deleteAuditLogsByAction('Player', id, 'RATING_SUGGEST');
+      
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
@@ -612,8 +616,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const oldStatus = signup.status;
 
-      // Update status
-      await storage.updateSignup(signup.id, status);
+      // Check starter cap if changing TO STARTER
+      if (status === 'STARTER' && oldStatus !== 'STARTER') {
+        const match = await storage.getMatch(matchId);
+        if (!match) {
+          return res.status(404).json({ ok: false, error: 'Match not found' });
+        }
+        
+        const cap = startersCap(match.sport);
+        const allSignups = await storage.getMatchSignups(matchId);
+        const currentStarters = allSignups.filter(s => s.status === 'STARTER').length;
+        
+        if (currentStarters >= cap) {
+          return res.status(400).json({ 
+            ok: false, 
+            error: `Posti titolari esauriti (${cap} totali, ${cap/2} per squadra)` 
+          });
+        }
+      }
+
+      // Determine reserve team based on new status
+      let reserveTeam: 'LIGHT' | 'DARK' | undefined = undefined;
+      
+      if (status === 'RESERVE' || status === 'NEXT') {
+        // Assign reserve team for RESERVE/NEXT - balance between LIGHT and DARK
+        const allSignups = await storage.getMatchSignups(matchId);
+        const lightCount = allSignups.filter(s => 
+          (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'LIGHT' && s.id !== signup.id
+        ).length;
+        const darkCount = allSignups.filter(s => 
+          (s.status === 'RESERVE' || s.status === 'NEXT') && s.reserveTeam === 'DARK' && s.id !== signup.id
+        ).length;
+        reserveTeam = lightCount <= darkCount ? 'LIGHT' : 'DARK';
+      } else if (status === 'STARTER') {
+        // STARTER should not have a reserve team - explicitly clear it
+        reserveTeam = null as any; // Pass null to clear the field
+      }
+
+      // Update status with reserve team (pass null to clear for STARTER)
+      await storage.updateSignup(signup.id, status, reserveTeam);
 
       // LOGIC: If was STARTER and now RESERVE/NEXT → promote first RESERVE to STARTER
       if (oldStatus === 'STARTER' && (status === 'RESERVE' || status === 'NEXT')) {
@@ -769,6 +810,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       broadcastPlayerRegistered(match.id, `${player.name} ${player.surname}`);
 
       res.json({ ok: true, matchId: match.id });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Get current user info
+  app.get('/api/user/me', userAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await storage.getUserByPhone(req.user!.phone);
+      if (!user) {
+        return res.status(404).json({ ok: false, error: 'User not found' });
+      }
+      res.json({ ok: true, user });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -931,6 +985,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(`[regenerateVariantsAndApplyV1] Error:`, error);
     }
   }
+
+  // Update match team names (admin)
+  app.patch('/api/admin/matches/:id/names', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { teamNameLight, teamNameDark } = req.body;
+      
+      const match = await storage.getMatch(id);
+      if (!match) {
+        return res.status(404).json({ ok: false, error: 'Partita non trovata' });
+      }
+      
+      await storage.updateMatch(id, { teamNameLight, teamNameDark });
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Upload avatar (admin or user)
+  app.post('/api/upload-avatar', async (req, res) => {
+    try {
+      const { phone, imageData } = req.body;
+      
+      if (!phone || !imageData) {
+        return res.status(400).json({ ok: false, error: 'Phone e imageData richiesti' });
+      }
+      
+      // Validate image is base64 and size (max 500x500px ~ 100KB base64)
+      if (imageData.length > 200000) {
+        return res.status(400).json({ ok: false, error: 'Immagine troppo grande (max 500x500px)' });
+      }
+      
+      const normalized = normalizeE164(phone);
+      
+      // Update user avatar
+      const user = await storage.getUserByPhone(normalized);
+      if (user) {
+        await storage.updateUser(user.id, { avatarUrl: imageData });
+      }
+      
+      // Update player avatar
+      const player = await storage.getPlayerByPhone(normalized);
+      if (player) {
+        await storage.updatePlayer(player.id, { avatarUrl: imageData });
+      }
+      
+      res.json({ ok: true, avatarUrl: imageData });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Delete match (admin)
+  app.delete('/api/admin/matches/:id', adminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const match = await storage.getMatch(id);
+      if (!match) {
+        return res.status(404).json({ ok: false, error: 'Partita non trovata' });
+      }
+      
+      // Delete all related data (cascade)
+      // 1. Delete lineup assignments for all versions
+      const versions = await storage.getLineupVersions(id);
+      for (const version of versions) {
+        await storage.deleteLineupAssignments(version.id);
+      }
+      
+      // 2. Delete lineup versions
+      await storage.deleteLineupVersions(id);
+      
+      // 3. Delete team assignments
+      const teams = await storage.getMatchTeams(id);
+      for (const team of teams) {
+        await storage.deleteTeamAssignments(team.id);
+      }
+      
+      // 4. Delete signups
+      const signups = await storage.getMatchSignups(id);
+      for (const signup of signups) {
+        await storage.deleteSignup(signup.id);
+      }
+      
+      // 5. Delete teams
+      for (const team of teams) {
+        await storage.deleteTeam(team.id);
+      }
+      
+      // 6. Delete match
+      await storage.deleteMatch(id);
+      
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
 
   const httpServer = createServer(app);
   setupWebSocket(httpServer);

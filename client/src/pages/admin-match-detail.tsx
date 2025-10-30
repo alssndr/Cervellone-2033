@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -12,7 +13,7 @@ import TeamPanel from '@/components/TeamPanel';
 import RadarChart from '@/components/RadarChart';
 import FieldView from '@/components/FieldView';
 import { type Match, type Sport, AXES, AXIS_LABELS_IT } from '@shared/schema';
-import { ArrowLeft, Calendar, MapPin, Users, Check, UserPlus } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, Check, Pencil, Trash2 } from 'lucide-react';
 
 interface MatchViewData {
   ok: boolean;
@@ -32,6 +33,10 @@ interface MatchViewData {
     reserves: {
       light: { id: string; name: string }[];
       dark: { id: string; name: string }[];
+    };
+    next?: {
+      light: { playerId: string; name: string }[];
+      dark: { playerId: string; name: string }[];
     };
     radar: {
       light: Record<string, number>;
@@ -59,12 +64,63 @@ interface AdminMatchDetailProps {
 export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
   const { id } = params;
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
-  const [addingPlayer, setAddingPlayer] = useState<any | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string>('STARTER');
   const [v4LightIds, setV4LightIds] = useState<string[]>([]);
   const [v4DarkIds, setV4DarkIds] = useState<string[]>([]);
   const [isV4Dirty, setIsV4Dirty] = useState(false);
+  
+  // Interactive radar states
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  
+  // Rename teams dialog
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [newTeamNameLight, setNewTeamNameLight] = useState('');
+  const [newTeamNameDark, setNewTeamNameDark] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Player interaction handlers
+  const handlePlayerHover = (playerId: string) => {
+    setHoveredPlayerId(playerId);
+  };
+
+  const handlePlayerLeave = () => {
+    setHoveredPlayerId(null);
+  };
+
+  const handlePlayerClick = (playerId: string, teamAssignment: 'LIGHT' | 'DARK') => {
+    setSelectedPlayerIds(prev => {
+      // If already selected, deselect
+      if (prev.includes(playerId)) {
+        return prev.filter(id => id !== playerId);
+      }
+
+      // Find players from same team that are already selected
+      const sameTeamPlayerIds = prev.filter(id => {
+        const signup = signupsData?.signups?.find(s => s.playerId === id);
+        return signup?.teamAssignment === teamAssignment;
+      });
+
+      // If there's a player from same team selected, remove it and add the new one
+      if (sameTeamPlayerIds.length > 0) {
+        return [...prev.filter(id => !sameTeamPlayerIds.includes(id)), playerId];
+      }
+
+      // Check max 2 players total
+      if (prev.length >= 2) {
+        toast({
+          title: 'Limite raggiunto',
+          description: 'Puoi confrontare massimo 2 giocatori alla volta',
+          variant: 'destructive',
+        });
+        return prev;
+      }
+
+      // Add player
+      return [...prev, playerId];
+    });
+  };
 
   // Fetch match data (using public endpoint for now, can be enhanced with admin endpoint)
   const { data: matchData, isLoading } = useQuery<MatchViewData>({
@@ -121,6 +177,43 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     },
   });
 
+  // Rename teams mutation
+  const renameTeamsMutation = useMutation({
+    mutationFn: async ({ teamNameLight, teamNameDark }: { teamNameLight: string; teamNameDark: string }) => {
+      const response = await apiRequest('PATCH', `/api/admin/matches/${id}/names`, { teamNameLight, teamNameDark });
+      return await response.json();
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
+      setShowRenameDialog(false);
+      toast({
+        title: 'Nomi squadre aggiornati!',
+        description: 'I nuovi nomi sono stati salvati',
+      });
+    },
+  });
+
+  const deleteMatchMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('DELETE', `/api/admin/matches/${id}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Partita eliminata',
+        description: 'La partita è stata rimossa con successo',
+      });
+      setLocation('/admin/matches');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile eliminare la partita',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Add player to match mutation
   const addPlayerMutation = useMutation({
     mutationFn: async ({ playerId, status }: { playerId: string; status: string }) => {
@@ -131,47 +224,58 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
       }
       return data;
     },
-    onSuccess: async () => {
-      setAddingPlayer(null);
-      setSelectedStatus('STARTER');
+    onSuccess: async (_data, variables) => {
+      const { status } = variables;
       
-      // Show loading feedback
-      toast({
-        title: '⚙️ Rigenerazione squadre...',
-        description: 'Calcolo varianti in corso',
-      });
-      
-      // Reset selected variant before regenerating
-      setSelectedVariant(null);
-      
-      // Regenerate lineups to include the new player
-      await generateVariantsMutation.mutateAsync();
-      
-      // Wait a bit for cache to clear, then fetch fresh WITH AUTH
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Fetch directly from server with authentication (bypass all cache)
-      const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
-      const lineupsData = await response.json();
-      
-      if (lineupsData?.variants && lineupsData.variants.length > 0) {
-        // Take the RECOMMENDED variant (the GREEDY_LOCAL one, best balanced)
-        const recommendedVariant = lineupsData.variants.find((v: any) => v.recommended) || lineupsData.variants[0];
-        console.log('[ADD_PLAYER] Applying recommended variant:', recommendedVariant.id);
-        setSelectedVariant(recommendedVariant.id);
-        await applyVariantMutation.mutateAsync(recommendedVariant.id);
+      // Only regenerate lineups if adding a STARTER
+      // Reserves and NEXT players don't affect team balance
+      if (status === 'STARTER') {
+        // Show loading feedback
+        toast({
+          title: '⚙️ Rigenerazione squadre...',
+          description: 'Calcolo varianti in corso',
+        });
         
-        // Force immediate update of public view with cache invalidation (MUST include phone param!)
-        await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
-        await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`], type: 'active' });
+        // Reset selected variant before regenerating
+        setSelectedVariant(null);
+        
+        // Regenerate lineups to include the new player
+        await generateVariantsMutation.mutateAsync();
+        
+        // Wait a bit for cache to clear, then fetch fresh WITH AUTH
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Fetch directly from server with authentication (bypass all cache)
+        const response = await apiRequest('GET', `/api/admin/matches/${id}/lineups`);
+        const lineupsData = await response.json();
+        
+        if (lineupsData?.variants && lineupsData.variants.length > 0) {
+          // Take the RECOMMENDED variant (the GREEDY_LOCAL one, best balanced)
+          const recommendedVariant = lineupsData.variants.find((v: any) => v.recommended) || lineupsData.variants[0];
+          console.log('[ADD_PLAYER] Applying recommended variant:', recommendedVariant.id);
+          setSelectedVariant(recommendedVariant.id);
+          await applyVariantMutation.mutateAsync(recommendedVariant.id);
+          
+          // Force immediate update of public view with cache invalidation (MUST include phone param!)
+          await queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
+          await queryClient.refetchQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`], type: 'active' });
+        }
+        
+        toast({
+          title: '✅ Giocatore aggiunto!',
+          description: 'Squadre ribilanciate',
+        });
+      } else {
+        // For RESERVE and NEXT, just refresh the signups list
+        toast({
+          title: '✅ Giocatore aggiunto!',
+          description: status === 'RESERVE' ? 'Aggiunto alle riserve' : 'Aggiunto per la prossima volta',
+        });
       }
       
+      // Always invalidate signups and public view
       queryClient.invalidateQueries({ queryKey: ['/api/admin/matches', id, 'signups'] });
-      
-      toast({
-        title: '✅ Giocatore aggiunto!',
-        description: 'Squadre ribilanciate',
-      });
+      queryClient.invalidateQueries({ queryKey: [`/api/matches/${id}/public?phone=+39 333 0000000`] });
     },
     onError: (error: Error) => {
       toast({
@@ -356,21 +460,6 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     }
   }, [variantsData?.variants]);
 
-  // Reset selectedStatus when opening add player dialog
-  useEffect(() => {
-    if (addingPlayer) {
-      // Calculate if starters limit is reached
-      const currentStarters = signupsData?.signups?.filter(s => s.status === 'STARTER').length || 0;
-      const sport = matchData?.view?.match?.sport || 'THREE';
-      const maxStartersPerTeam = sport === 'THREE' ? 3 : sport === 'FIVE' ? 5 : sport === 'EIGHT' ? 8 : 11;
-      const maxStartersTotal = maxStartersPerTeam * 2;
-      const isLimitReached = currentStarters >= maxStartersTotal;
-      
-      // Set default status: RESERVE if limit reached, otherwise STARTER
-      setSelectedStatus(isLimitReached ? 'RESERVE' : 'STARTER');
-    }
-  }, [addingPlayer, signupsData, matchData]);
-
   // WebSocket for real-time player registration notifications
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -460,7 +549,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     );
   }
 
-  const { match, starters, reserves, radar } = matchData.view;
+  const { match, starters, reserves, next, radar } = matchData.view;
   // Show only V1, V2, V3 in top variants (exclude V4 and MVP which have their own buttons)
   const topVariants = variantsData?.variants?.filter(v => ['V1', 'V2', 'V3'].includes(v.variantType)) || [];
 
@@ -522,23 +611,96 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
     }
   };
 
+  // Calculate radar datasets based on hover and selections
+  const radarAdditionalDatasets = (() => {
+    const datasets: Array<{
+      data: Record<string, number>;
+      label: string;
+      color: string;
+      visible?: boolean;
+    }> = [];
+
+    // Determine which players to show
+    const playersToShow: string[] = [];
+    
+    // Always show selected players
+    if (selectedPlayerIds.length > 0) {
+      playersToShow.push(...selectedPlayerIds);
+    }
+    
+    // Additionally show hovered player if not already selected
+    if (hoveredPlayerId && !playersToShow.includes(hoveredPlayerId)) {
+      playersToShow.push(hoveredPlayerId);
+    }
+
+    // Build datasets for each player to show
+    playersToShow.forEach(playerId => {
+      const signup = signupsData?.signups?.find(s => s.playerId === playerId);
+      if (signup && signup.ratings) {
+        const playerName = signup.player?.name || 'Giocatore';
+        const playerSurname = signup.player?.surname || '';
+        
+        // Determine team based on player position in lists
+        const isInLightTeam = starters.light.some(p => p.id === playerId) ||
+                             reserves.light.some(p => p.id === playerId) ||
+                             (next && next.light.some(p => p.playerId === playerId));
+        const color = isInLightTeam ? '#fc0fc0' : '#0000ff';
+        
+        datasets.push({
+          data: signup.ratings,
+          label: `${playerName} ${playerSurname}`.trim(),
+          color,
+          visible: true,
+        });
+      }
+    });
+
+    return datasets;
+  })();
+
   return (
     <div className="min-h-screen bg-paper">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-6">
-          <Link href="/admin/matches">
-            <Button variant="ghost" size="sm" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Torna alle partite
+          <div className="flex items-center justify-between mb-4">
+            <Link href="/admin/matches">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Torna alle partite
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              data-testid="button-delete-match"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Elimina Partita
             </Button>
-          </Link>
+          </div>
 
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-ink mb-2">
-                {match.teamNameLight} vs {match.teamNameDark}
-              </h1>
+              <div className="flex items-center gap-2 mb-2">
+                <h1 className="text-3xl font-bold text-ink">
+                  {match.teamNameLight} vs {match.teamNameDark}
+                </h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover-elevate"
+                  onClick={() => {
+                    setNewTeamNameLight(match.teamNameLight || 'Chiari');
+                    setNewTeamNameDark(match.teamNameDark || 'Scuri');
+                    setShowRenameDialog(true);
+                  }}
+                  data-testid="button-rename-teams"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              </div>
               
               {/* Team Averages */}
               <div className="mb-3">
@@ -569,15 +731,8 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Field View Header with Variants */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Campo {getSportLabel(match.sport)}</h2>
-            
-            {/* Variant Selectors */}
+            {/* Variant Selectors - aligned right */}
             <div className="flex items-center gap-2">
               {topVariants.map((variant) => (
                 <button
@@ -611,6 +766,10 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Field View */}
+        <div className="mb-8">
 
           <FieldView
             sport={match.sport}
@@ -684,81 +843,13 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
           )}
         </div>
 
-        {/* Team Rosters - Text View */}
-        {(starters.light.length > 0 || starters.dark.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="rounded-xl border border-card-border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
-                {match.teamNameLight} (Chiari)
-              </h3>
-              <div className="space-y-2">
-                {starters.light.map((player, idx) => (
-                  <div
-                    key={player.id}
-                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
-                    data-testid={`roster-light-${player.id}`}
-                  >
-                    {idx + 1}. {player.name}
-                  </div>
-                ))}
-                {starters.light.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-card-border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-4" style={{ color: '#0000ff' }}>
-                {match.teamNameDark} (Scuri)
-              </h3>
-              <div className="space-y-2">
-                {starters.dark.map((player, idx) => (
-                  <div
-                    key={player.id}
-                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
-                    data-testid={`roster-dark-${player.id}`}
-                  >
-                    {idx + 1}. {player.name}
-                  </div>
-                ))}
-                {starters.dark.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Radar Chart */}
-        <div className="bg-white rounded-xl border border-gray-200 mb-8">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Confronto Radar</h2>
-          </div>
-          <RadarChart
-            lightData={radar.light}
-            darkData={radar.dark}
-            lightLabel={match.teamNameLight}
-            darkLabel={match.teamNameDark}
-          />
-        </div>
-
-        {/* Team Stats */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <TeamPanel 
-            teamLabel={`${match.teamNameLight} — Medie`}
-            axisMeans={radar.light}
-          />
-          <TeamPanel 
-            teamLabel={`${match.teamNameDark} — Medie`}
-            axisMeans={radar.dark}
-          />
-        </div>
-
-        {/* Enrolled Players Section - Two Columns */}
+        {/* Stats Section - Three Columns */}
         {enrolledPlayers.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Giocatori Schierati ({enrolledPlayers.length})</h2>
-            <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl border border-gray-200 mb-8">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold">Stats</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-6 p-6">
               {/* Squadra Chiara */}
               <div className="border-2 border-pinkTeam/30 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
@@ -773,11 +864,22 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
                       const isLastStarter = currentStarters === 1;
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
                       return (
                         <div
                           key={player.id}
-                          className="border border-gray-200 rounded-lg p-3"
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                              : isHovered
+                              ? 'border-pinkTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
                           data-testid={`light-starter-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'LIGHT')}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
@@ -826,11 +928,22 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                     {reserves.light.map((player) => {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
                       return (
                         <div
                           key={player.id}
-                          className="border border-gray-200 rounded-lg p-3"
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                              : isHovered
+                              ? 'border-pinkTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
                           data-testid={`light-reserve-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'LIGHT')}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
@@ -872,46 +985,77 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
                   <div className="space-y-2">
-                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'LIGHT').map((signup: any) => (
-                      <div
-                        key={signup.signupId}
-                        className="border border-gray-200 rounded-lg p-3"
-                        data-testid={`light-next-${signup.playerId}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Media: {calculatePlayerAverage(signup.ratings)}
-                            </p>
+                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'LIGHT').map((signup: any) => {
+                      const isSelected = selectedPlayerIds.includes(signup.playerId);
+                      const isHovered = hoveredPlayerId === signup.playerId;
+                      return (
+                        <div
+                          key={signup.signupId}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-pinkTeam border-2 bg-pinkTeam/10' 
+                              : isHovered
+                              ? 'border-pinkTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
+                          data-testid={`light-next-${signup.playerId}`}
+                          onMouseEnter={() => handlePlayerHover(signup.playerId)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(signup.playerId, 'LIGHT')}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <Select 
-                            value={signup.status} 
-                            onValueChange={(newStatus) => {
-                              updateStatusMutation.mutate({
-                                signupId: signup.signupId,
-                                status: newStatus,
-                              });
-                            }}
-                            disabled={updateStatusMutation.isPending}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
-                              <SelectItem value="RESERVE">Riserva</SelectItem>
-                              <SelectItem value="NEXT">Prossimo</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {!signupsData?.signups?.some((s: any) => s.status === 'NEXT' && s.reserveTeam === 'LIGHT') && (
                       <p className="text-sm text-muted-foreground italic">Nessuno in attesa</p>
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Radar Chart - Center Column */}
+              <div className="flex flex-col items-center justify-center">
+                <h3 className="text-lg font-semibold mb-4">Radar</h3>
+                <RadarChart
+                  lightData={radar.light}
+                  darkData={radar.dark}
+                  lightLabel={match.teamNameLight}
+                  darkLabel={match.teamNameDark}
+                  additionalDatasets={radarAdditionalDatasets}
+                  hasSelections={selectedPlayerIds.length > 0}
+                />
+                {radarAdditionalDatasets.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    {hoveredPlayerId ? 'Hover attivo' : `${selectedPlayerIds.length} giocator${selectedPlayerIds.length === 1 ? 'e' : 'i'} selezionat${selectedPlayerIds.length === 1 ? 'o' : 'i'}`}
+                  </p>
+                )}
               </div>
 
               {/* Squadra Scura */}
@@ -928,11 +1072,22 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
                       const isLastStarter = currentStarters === 1;
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
                       return (
                         <div
                           key={player.id}
-                          className="border border-gray-200 rounded-lg p-3"
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                              : isHovered
+                              ? 'border-blueTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
                           data-testid={`dark-starter-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'DARK')}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
@@ -981,11 +1136,22 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                     {reserves.dark.map((player) => {
                       const signup = signupsData?.signups?.find(s => s.playerId === player.id);
                       if (!signup) return null;
+                      const isSelected = selectedPlayerIds.includes(player.id);
+                      const isHovered = hoveredPlayerId === player.id;
                       return (
                         <div
                           key={player.id}
-                          className="border border-gray-200 rounded-lg p-3"
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                              : isHovered
+                              ? 'border-blueTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
                           data-testid={`dark-reserve-${player.id}`}
+                          onMouseEnter={() => handlePlayerHover(player.id)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(player.id, 'DARK')}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
@@ -1027,46 +1193,104 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground mb-2">Prossima Volta</h4>
                   <div className="space-y-2">
-                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'DARK').map((signup: any) => (
-                      <div
-                        key={signup.signupId}
-                        className="border border-gray-200 rounded-lg p-3"
-                        data-testid={`dark-next-${signup.playerId}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Media: {calculatePlayerAverage(signup.ratings)}
-                            </p>
+                    {signupsData?.signups?.filter((s: any) => s.status === 'NEXT' && s.reserveTeam === 'DARK').map((signup: any) => {
+                      const isSelected = selectedPlayerIds.includes(signup.playerId);
+                      const isHovered = hoveredPlayerId === signup.playerId;
+                      return (
+                        <div
+                          key={signup.signupId}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blueTeam border-2 bg-blueTeam/10' 
+                              : isHovered
+                              ? 'border-blueTeam/50 border-2'
+                              : 'border-gray-200'
+                          }`}
+                          data-testid={`dark-next-${signup.playerId}`}
+                          onMouseEnter={() => handlePlayerHover(signup.playerId)}
+                          onMouseLeave={handlePlayerLeave}
+                          onClick={() => handlePlayerClick(signup.playerId, 'DARK')}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm">{signup.player?.name} {signup.player?.surname}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Media: {calculatePlayerAverage(signup.ratings)}
+                              </p>
+                            </div>
+                            <Select 
+                              value={signup.status} 
+                              onValueChange={(newStatus) => {
+                                updateStatusMutation.mutate({
+                                  signupId: signup.signupId,
+                                  status: newStatus,
+                                });
+                              }}
+                              disabled={updateStatusMutation.isPending}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
+                                <SelectItem value="RESERVE">Riserva</SelectItem>
+                                <SelectItem value="NEXT">Prossimo</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <Select 
-                            value={signup.status} 
-                            onValueChange={(newStatus) => {
-                              updateStatusMutation.mutate({
-                                signupId: signup.signupId,
-                                status: newStatus,
-                              });
-                            }}
-                            disabled={updateStatusMutation.isPending}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
-                              <SelectItem value="RESERVE">Riserva</SelectItem>
-                              <SelectItem value="NEXT">Prossimo</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {!signupsData?.signups?.some((s: any) => s.status === 'NEXT' && s.reserveTeam === 'DARK') && (
                       <p className="text-sm text-muted-foreground italic">Nessuno in attesa</p>
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Team Rosters - Text View */}
+        {(starters.light.length > 0 || starters.dark.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <div className="rounded-xl border border-card-border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#fc0fc0' }}>
+                {match.teamNameLight} (Chiari)
+              </h3>
+              <div className="space-y-2">
+                {starters.light.map((player, idx) => (
+                  <div
+                    key={player.id}
+                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
+                    data-testid={`roster-light-${player.id}`}
+                  >
+                    {idx + 1}. {player.name}
+                  </div>
+                ))}
+                {starters.light.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-card-border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: '#0000ff' }}>
+                {match.teamNameDark} (Scuri)
+              </h3>
+              <div className="space-y-2">
+                {starters.dark.map((player, idx) => (
+                  <div
+                    key={player.id}
+                    className="px-4 py-2 rounded-lg bg-muted text-sm font-medium"
+                    data-testid={`roster-dark-${player.id}`}
+                  >
+                    {idx + 1}. {player.name}
+                  </div>
+                ))}
+                {starters.dark.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">Nessun giocatore</p>
+                )}
               </div>
             </div>
           </div>
@@ -1083,7 +1307,7 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                   className="border border-gray-200 rounded-lg p-4 hover:border-blueTeam transition-colors"
                   data-testid={`player-compact-${player.id}`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <h3 className="font-semibold text-sm">
                         {player.name} {player.surname}
@@ -1096,14 +1320,28 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
                         <span className="text-xs text-muted-foreground ml-1">media</span>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAddingPlayer(player)}
-                      data-testid={`button-add-player-${player.id}`}
-                    >
-                      <UserPlus className="w-4 h-4" />
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-muted-foreground">Aggiungi come</p>
+                      <Select
+                        value=""
+                        onValueChange={(status) => {
+                          addPlayerMutation.mutate({
+                            playerId: player.id,
+                            status: status as 'STARTER' | 'RESERVE' | 'NEXT',
+                          });
+                        }}
+                        disabled={addPlayerMutation.isPending}
+                      >
+                        <SelectTrigger className="h-9 w-32 text-xs" data-testid={`select-add-player-${player.id}`}>
+                          <SelectValue placeholder="Seleziona..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
+                          <SelectItem value="RESERVE">Riserva</SelectItem>
+                          <SelectItem value="NEXT">Prossimo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1118,48 +1356,73 @@ export default function AdminMatchDetail({ params }: AdminMatchDetailProps) {
         )}
       </div>
 
-      {/* Add Player Dialog */}
-      <Dialog open={!!addingPlayer} onOpenChange={(open) => !open && setAddingPlayer(null)}>
-        <DialogContent>
+      {/* Rename Teams Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent data-testid="dialog-rename-teams">
           <DialogHeader>
-            <DialogTitle>Aggiungi {addingPlayer?.name} {addingPlayer?.surname}</DialogTitle>
+            <DialogTitle>Rinomina Squadre</DialogTitle>
+            <DialogDescription>
+              Modifica i nomi delle squadre per questa partita
+            </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div>
-              <Label htmlFor="status">Stato</Label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {!isStartersLimitReached && <SelectItem value="STARTER">Titolare</SelectItem>}
-                  <SelectItem value="RESERVE">Riserva</SelectItem>
-                  <SelectItem value="NEXT">Prossimo</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="team-light">Squadra Chiara</Label>
+              <Input
+                id="team-light"
+                value={newTeamNameLight}
+                onChange={(e) => setNewTeamNameLight(e.target.value)}
+                placeholder="Es. Chiari, Bianchi..."
+                data-testid="input-team-light"
+              />
+            </div>
+            <div>
+              <Label htmlFor="team-dark">Squadra Scura</Label>
+              <Input
+                id="team-dark"
+                value={newTeamNameDark}
+                onChange={(e) => setNewTeamNameDark(e.target.value)}
+                placeholder="Es. Scuri, Neri..."
+                data-testid="input-team-dark"
+              />
             </div>
           </div>
-
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAddingPlayer(null)}
-            >
+            <Button variant="outline" onClick={() => setShowRenameDialog(false)} data-testid="button-cancel-rename">
               Annulla
             </Button>
-            <Button
-              onClick={() => {
-                if (addingPlayer) {
-                  addPlayerMutation.mutate({
-                    playerId: addingPlayer.id,
-                    status: selectedStatus,
-                  });
-                }
-              }}
-              disabled={addPlayerMutation.isPending}
+            <Button 
+              onClick={() => renameTeamsMutation.mutate({ teamNameLight: newTeamNameLight, teamNameDark: newTeamNameDark })}
+              disabled={renameTeamsMutation.isPending || !newTeamNameLight || !newTeamNameDark}
+              data-testid="button-confirm-rename"
             >
-              {addPlayerMutation.isPending ? 'Aggiunta...' : 'Aggiungi'}
+              {renameTeamsMutation.isPending ? 'Salvataggio...' : 'Salva'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Match Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent data-testid="dialog-delete-match">
+          <DialogHeader>
+            <DialogTitle>Elimina Partita</DialogTitle>
+            <DialogDescription>
+              Sei sicuro di voler eliminare questa partita? Questa azione non può essere annullata.
+              Tutti i giocatori iscritti e le configurazioni delle squadre saranno rimossi.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} data-testid="button-cancel-delete">
+              Annulla
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteMatchMutation.mutate()}
+              disabled={deleteMatchMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deleteMatchMutation.isPending ? 'Eliminazione...' : 'Elimina'}
             </Button>
           </DialogFooter>
         </DialogContent>
