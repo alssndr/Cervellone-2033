@@ -34,27 +34,38 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 
 **ORM/Query Builder**: Drizzle ORM.
-**Database Provider**: Neon Database (serverless PostgreSQL).
+**Database Provider**: PostgreSQL (compatible with any PostgreSQL hosting including Neon, Render, etc.).
+**Database Driver**: Standard `postgres` package for maximum compatibility.
 **Schema Design**: Includes tables for Users, Players, PlayerRatings, Matches, Signups, Teams, TeamAssignments, LineupVersion, LineupAssignment, and AuditLog, using VARCHAR UUIDs for primary keys and proper foreign key relationships.
 **Data Flow**: Admin initiates matches and invites players, players self-rate and sign up, admin reviews/approves ratings, the system generates balanced lineup variants, and the public view displays teams.
 
 ## External Dependencies
 
 **Third-Party Services**:
-*   Neon Database (serverless PostgreSQL hosting).
+*   PostgreSQL Database (currently Neon, deployable to any PostgreSQL hosting).
 *   Google Fonts CDN (Inter, DM Sans, Architects Daughter, Fira Code, Geist Mono).
 
 **Key Libraries**:
 *   **Authentication**: `jsonwebtoken`.
 *   **Data Visualization**: Chart.js with `react-chartjs-2`.
 *   **Form Management**: React Hook Form with `@hookform/resolvers` and Zod.
-*   **Database**: Drizzle ORM with `@neondatabase/serverless` driver.
+*   **Database**: Drizzle ORM with standard `postgres` driver.
 *   **Session Management**: `cookie-parser`.
 *   **UI Components**: Radix UI primitives (`@radix-ui/react-*`).
 
 **API Security**: HTTP-only cookies for tokens, Bearer token support, environment-based JWT secret configuration.
 
 ## Recent Updates
+
+### October 30, 2025
+
+**Database Driver Migration**: Migrated from Neon-specific driver to standard PostgreSQL driver for maximum hosting compatibility:
+- Replaced `@neondatabase/serverless` with standard `postgres` package
+- Updated `server/db/index.ts` to use `drizzle-orm/postgres-js` adapter
+- Removed obsolete `server/db.ts` file with Neon-specific configuration
+- Application now compatible with any PostgreSQL hosting provider (Neon, Render, Heroku, AWS RDS, etc.)
+- Zero downtime: Migration completed while maintaining full functionality
+- Database schema and data preserved: All 45 players and 5 matches intact
 
 ### October 24, 2025
 
